@@ -29,3 +29,6 @@ pnpm-debug.log*
 # editor config folders
 .vscode/
 .vercel
+
+# 방송 자막 원문 보관 (저작권상 커밋 금지, 로컬 전용)
+transcripts/

@@ -10,7 +10,9 @@
     - 각 유튜브 영상에서 한국어 자막 추출 (yt-dlp + Chrome 쿠키)
     - 쇼츠(60초 이하)는 자동 제외
     - VTT 자막을 깨끗한 텍스트로 정리
-    - /tmp/tedpick_transcripts/ 에 <영상ID>.txt 로 저장
+    - /tmp/tedpick_transcripts/ 에 <영상ID>.txt 로 저장 (분석용 임시본)
+    - transcripts/<업로드일>/ 에도 사본을 영구 보관 (재부팅해도 유지)
+      · 위치 변경: 환경변수 TEDPICK_TRANSCRIPT_DIR
     - 영상 제목·길이·업로드시각을 함께 출력
 """
 import sys
@@ -20,8 +22,22 @@ import json
 import subprocess
 import tempfile
 
-OUT_DIR = "/tmp/tedpick_transcripts"
+OUT_DIR = "/tmp/tedpick_transcripts"  # 분석용 임시본 (맥OS가 주기적으로 청소함)
+
+# 영구 보관 폴더 (재부팅해도 유지). 기본값은 프로젝트 루트의 transcripts/.
+# 다른 곳에 쌓고 싶으면 TEDPICK_TRANSCRIPT_DIR 환경변수로 지정.
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ARCHIVE_DIR = os.environ.get(
+    "TEDPICK_TRANSCRIPT_DIR", os.path.join(_PROJECT_ROOT, "transcripts")
+)
 SHORTS_MAX_SECONDS = 60  # 이 이하 길이는 쇼츠로 보고 제외
+
+
+def fmt_date(yyyymmdd):
+    """20260909 → 2026-09-09 (날짜별 보관 폴더명). 없으면 unknown-date."""
+    if yyyymmdd and len(yyyymmdd) == 8 and yyyymmdd.isdigit():
+        return f"{yyyymmdd[:4]}-{yyyymmdd[4:6]}-{yyyymmdd[6:]}"
+    return "unknown-date"
 
 
 def run(cmd):
@@ -129,16 +145,30 @@ def main():
             results.append({"url": url, "status": "no_subtitle", "title": meta["title"]})
             continue
 
+        header = (
+            f"# {meta['title']}\n"
+            f"# 길이: {mins}분 {secs}초 / 업로드: {meta['upload_date']}\n"
+            f"# URL: {url}\n\n"
+        )
+        content = header + text
+
+        # 1) 분석용 임시본 (/tmp)
         out_path = os.path.join(OUT_DIR, f"{meta['id']}.txt")
         with open(out_path, "w", encoding="utf-8") as f:
-            f.write(f"# {meta['title']}\n")
-            f.write(f"# 길이: {mins}분 {secs}초 / 업로드: {meta['upload_date']}\n")
-            f.write(f"# URL: {url}\n\n")
-            f.write(text)
+            f.write(content)
+
+        # 2) 영구 보관 사본 (transcripts/<업로드일>/)
+        archive_day_dir = os.path.join(ARCHIVE_DIR, fmt_date(meta["upload_date"]))
+        os.makedirs(archive_day_dir, exist_ok=True)
+        archive_path = os.path.join(archive_day_dir, f"{meta['id']}.txt")
+        with open(archive_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
         print(f"  ✅ 자막 {len(text):,}자 저장 → {out_path}")
+        print(f"     📁 보관 → {archive_path}")
         results.append({
             "url": url, "status": "ok", "title": meta["title"],
-            "chars": len(text), "path": out_path,
+            "chars": len(text), "path": out_path, "archive": archive_path,
         })
 
     # 요약
@@ -149,7 +179,8 @@ def main():
     print(f"  ⏭️  쇼츠 제외: {len([r for r in results if r['status']=='skipped_short'])}개")
     print(f"  ⚠️  자막 없음: {len([r for r in results if r['status']=='no_subtitle'])}개")
     print(f"  ❌ 실패: {len([r for r in results if r['status']=='meta_fail'])}개")
-    print(f"\n저장 위치: {OUT_DIR}/")
+    print(f"\n분석용 임시본: {OUT_DIR}/")
+    print(f"영구 보관: {ARCHIVE_DIR}/<업로드일>/")
 
 
 if __name__ == "__main__":
