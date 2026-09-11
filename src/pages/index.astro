@@ -135,7 +135,7 @@ const allPastDates = [
               ))}
             </div>
           )}
-          {reportsByDate[todayKey] && <div class="pick-cta">바로 보기 →</div>}
+          {reportsByDate[todayKey] && <div class="pick-cta">3분 요약 →</div>}
         </a>
       )}
 
@@ -151,7 +151,7 @@ const allPastDates = [
               <div class="broadcast-show">{post.show}</div>
               <h2 class="broadcast-title">{post.title}</h2>
               <p class="broadcast-summary">{post.summary}</p>
-              <div class="broadcast-cta">바로 보기 →</div>
+              <div class="broadcast-cta">3분 요약 →</div>
             </a>
           ))}
         </div>
@@ -160,7 +160,7 @@ const allPastDates = [
 
     <!-- PrepCard: 오늘 포스트 없을 때 히어로 카드 바깥 -->
     {!hasTodayPosts && (
-      <PrepCard latestSlug={posts[0]?.slug} isMarketHoliday={isMarketHoliday} />
+      <PrepCard latestSlug={posts[0]?.slug} isMarketHoliday={isMarketHoliday} todayLabel={todayDateLabel} />
     )}
 
     <!-- ===== 지난 PICK 아코디언 ===== -->
@@ -215,7 +215,7 @@ const allPastDates = [
                         ))}
                       </div>
                     )}
-                    {reportsByDate[date] && <div class="pick-cta">바로 보기 →</div>}
+                    {reportsByDate[date] && <div class="pick-cta">3분 요약 →</div>}
                   </a>
                 )}
                 {/* 개별 방송 요약 */}
@@ -230,7 +230,7 @@ const allPastDates = [
                     <div class="past-post-show">{post.show}</div>
                     <div class="past-post-title">{post.title}</div>
                     {post.summary && <p class="past-post-summary">{post.summary}</p>}
-                    <div class="past-post-cta">바로 보기 →</div>
+                    <div class="past-post-cta">3분 요약 →</div>
                   </a>
                 ))}
               </div>

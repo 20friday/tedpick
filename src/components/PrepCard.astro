@@ -2,8 +2,9 @@
 interface Props {
   latestSlug?: string;
   isMarketHoliday?: boolean;
+  todayLabel?: string;
 }
-const { latestSlug, isMarketHoliday = false } = Astro.props;
+const { latestSlug, isMarketHoliday = false, todayLabel = '' } = Astro.props;
 
 const initialTitle = isMarketHoliday ? '오늘은 시장도 잠시 쉬어가요' : '오늘의 PICK은 잠시 쉬어가고 있어요';
 const initialDesc  = isMarketHoliday ? '국내 증시 휴장일이라 오늘의 PICK은 쉬어갑니다. 다음 거래일에 주요 방송과 시장 이슈를 정리해서 다시 전해드릴게요.' : '밤사이 주요 이슈를 정리해, 장이 시작되면 다시 시장 흐름을 확인할게요.';
@@ -123,6 +124,7 @@ const initialEta   = isMarketHoliday ? '다음 거래일에 다시 확인' : '�
   <div class="prep-text">
     <div class="prep-status">
       <span class="prep-dot" aria-hidden="true"></span>
+      {todayLabel && <span class="prep-status-date">{todayLabel}</span>}
       <span class="prep-status-text">{initialStatus}</span>
     </div>
     <h3 class="prep-title">{initialTitle}</h3>
@@ -184,6 +186,11 @@ const initialEta   = isMarketHoliday ? '다음 거래일에 다시 확인' : '�
     letter-spacing: -0.01em;
     color: var(--text-2);
     margin-bottom: 8px;
+  }
+  /* 날짜 라벨 — 상태 텍스트 앞에 붙어 '오늘'이 언제인지 보여줌 */
+  .prep-status-date {
+    font-weight: 800;
+    color: var(--text-1);
   }
 
   /* ── Pulse dot ── */
