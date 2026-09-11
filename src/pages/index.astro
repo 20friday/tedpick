@@ -40,14 +40,13 @@ const { data: allReports } = await Astro.locals.supabase
 const reportsByDate: Record<string, { headline: string }> = {};
 for (const r of allReports ?? []) reportsByDate[r.date] = r;
 
-// 시장 흐름 (최신 1건) — 피드 맨 위 "지금 시장 흐름" 카드
+// 시장 흐름 (전체) — 날짜별 "오늘의 요약" 카드에 사용 (headline + 섹터 방향 칩)
 const { data: flowList } = await Astro.locals.supabase
   .from('market_flow')
-  .select('date, status, streak, tone, headline, body, sectors')
-  .order('date', { ascending: false })
-  .limit(1);
-const marketFlow: any = flowList?.[0] ?? null;
-const flowSectors: any[] = Array.isArray(marketFlow?.sectors) ? marketFlow.sectors.slice(0, 4) : [];
+  .select('date, tone, headline, sectors')
+  .order('date', { ascending: false });
+const flowByDate: Record<string, any> = {};
+for (const f of flowList ?? []) flowByDate[f.date] = f;
 
 // 날짜 유틸
 const days = ['일', '월', '화', '수', '목', '금', '토'];
@@ -75,9 +74,9 @@ const todayPosts: any[] = groupedPosts[todayKey] ?? [];
 const hasTodayPosts = todayPosts.length > 0;
 const showWeeklyCard = isTodayFriday && latestWeekly?.date === todayKey;
 
-// 과거 날짜 (포스트 or 리포트가 있는 날짜만)
+// 과거 날짜 (포스트·리포트·시장 흐름 중 하나라도 있는 날짜)
 const allPastDates = [
-  ...new Set([...Object.keys(groupedPosts), ...Object.keys(reportsByDate)])
+  ...new Set([...Object.keys(groupedPosts), ...Object.keys(reportsByDate), ...Object.keys(flowByDate)])
 ].filter(d => d < todayKey).sort((a, b) => b.localeCompare(a));
 ---
 
@@ -90,51 +89,8 @@ const allPastDates = [
       <p class="feed-sub">방송마다 흩어진 종목·섹터·이슈를 한 화면에 정리해드려요.</p>
     </div>
 
-    <!-- ===== 지금 시장 흐름 카드 (흐름 데이터 있을 때만) ===== -->
-    {marketFlow && (
-      <div class={`mflow mflow--${marketFlow.tone ?? 'neutral'}`}>
-        <div class="mflow-top">
-          <span class="mflow-eyebrow">
-            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M3 8h9a2.5 2.5 0 1 0-2.45-3M3 12h12a2.5 2.5 0 1 1-2.45 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-            </svg>
-            {marketFlow.date === todayKey ? '오늘의' : '어제까지의'} 시장 흐름
-          </span>
-          <span class={`mflow-status mflow-status--${marketFlow.status === 'shift' ? 'shift' : 'keep'}`}>
-            {marketFlow.status === 'shift' ? '🚩 흐름 전환' : `같은 흐름 ${marketFlow.streak ?? 1}일째`}
-          </span>
-        </div>
-
-        <div class="mflow-headline">{marketFlow.headline}</div>
-
-        {flowSectors.length > 0 && (
-          <div class="mflow-sectors">
-            {flowSectors.map((s: any) => (
-              <span class={`mflow-sec mflow-sec--${s.dir ?? 'neutral'}`}>
-                <span class="mflow-arrow">{s.dir === 'up' ? '↑' : s.dir === 'down' ? '↓' : '→'}</span>
-                {s.name}{s.label ? ` · ${s.label}` : ''}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {marketFlow.body && (
-          <details class="mflow-details">
-            <summary class="mflow-toggle">
-              <span class="mflow-toggle-more">자세히 보기</span>
-              <span class="mflow-toggle-less">접기</span>
-              <svg class="mflow-toggle-chev" width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </summary>
-            <p class="mflow-body">{marketFlow.body}</p>
-          </details>
-        )}
-      </div>
-    )}
-
     <!-- ===== 오늘 히어로 카드 (오늘 콘텐츠 있을 때만) ===== -->
-    {(hasTodayPosts || reportsByDate[todayKey] || showWeeklyCard) && <div class="today-hero">
+    {(hasTodayPosts || flowByDate[todayKey] || reportsByDate[todayKey] || showWeeklyCard) && <div class="today-hero">
 
       <!-- 오늘 칩 + 날짜 -->
       <div class="today-chip-row">
@@ -161,24 +117,41 @@ const allPastDates = [
         </a>
       )}
 
-      <!-- PICK 일일 리포트 -->
-      {reportsByDate[todayKey] && (
-        <a href={`/report/${todayKey}`} class="pick-card pick-card--daily">
-          <div class="pick-label pick-label--daily">⚡ PICK 일일 리포트</div>
-          <div class="pick-headline">{reportsByDate[todayKey].headline}</div>
-          <div class="pick-cta">바로 보기 →</div>
+      <!-- 오늘의 요약 (시장 흐름 + 일일 리포트 통합 카드) -->
+      {(flowByDate[todayKey] || reportsByDate[todayKey]) && (
+        <a
+          class={`pick-card pick-card--daily${reportsByDate[todayKey] ? '' : ' pick-card--nolink'}`}
+          href={reportsByDate[todayKey] ? `/report/${todayKey}` : undefined}
+        >
+          <div class="pick-label pick-label--summary">⚡ 오늘의 요약</div>
+          <div class="pick-headline">{flowByDate[todayKey]?.headline ?? reportsByDate[todayKey]?.headline}</div>
+          {Array.isArray(flowByDate[todayKey]?.sectors) && flowByDate[todayKey].sectors.length > 0 && (
+            <div class="summary-sectors">
+              {flowByDate[todayKey].sectors.slice(0, 4).map((s: any) => (
+                <span class={`summary-sec summary-sec--${s.dir ?? 'neutral'}`}>
+                  <span class="summary-arrow">{s.dir === 'up' ? '↑' : s.dir === 'down' ? '↓' : '→'}</span>
+                  {s.name}{s.label ? ` · ${s.label}` : ''}
+                </span>
+              ))}
+            </div>
+          )}
+          {reportsByDate[todayKey] && <div class="pick-cta">바로 보기 →</div>}
         </a>
       )}
 
-      <!-- 방송 목록 (플랫, 디바이더로만 구분) -->
+      <!-- 개별 방송 요약 (플랫, 디바이더로만 구분) -->
       {hasTodayPosts && (
         <div class="today-broadcasts">
-          {todayPosts.map((post: any, i: number) => (
-            <a href={`/post/${post.slug}`} class="broadcast-row">
+          <div class="section-head">
+            <div class="section-title">개별 방송 요약</div>
+            <div class="section-desc">방송별 관점을 하나씩 확인해보세요.</div>
+          </div>
+          {todayPosts.map((post: any) => (
+            <a href={`/post/${post.slug}`} class="broadcast-row" target="_blank" rel="noopener">
               <div class="broadcast-show">{post.show}</div>
               <h2 class="broadcast-title">{post.title}</h2>
               <p class="broadcast-summary">{post.summary}</p>
-              <div class="broadcast-cta">3분 요약 →</div>
+              <div class="broadcast-cta">바로 보기 →</div>
             </a>
           ))}
         </div>
@@ -196,7 +169,7 @@ const allPastDates = [
         {allPastDates.map((date: string, i: number) => {
           const isFridayDate = new Date(date + 'T00:00:00').getDay() === 5;
           const hasWeeklyBadge = isFridayDate && weeklyDateSet.has(date);
-          const headline = (hasWeeklyBadge ? weeklyByDate[date]?.headline : null) ?? reportsByDate[date]?.headline ?? '';
+          const headline = (hasWeeklyBadge ? weeklyByDate[date]?.headline : null) ?? flowByDate[date]?.headline ?? reportsByDate[date]?.headline ?? '';
           const datePosts: any[] = groupedPosts[date] ?? [];
           const isExtra = i >= 7;
           return (
@@ -224,21 +197,40 @@ const allPastDates = [
                     <div class="pick-cta">바로 보기 →</div>
                   </a>
                 )}
-                {/* 일일 픽 카드 */}
-                {reportsByDate[date] && (
-                  <a href={`/report/${date}`} class="pick-card pick-card--daily past-pick-card">
-                    <div class="pick-label pick-label--daily">⚡ PICK 일일 리포트</div>
-                    <div class="pick-headline">{reportsByDate[date].headline}</div>
-                    <div class="pick-cta">바로 보기 →</div>
+                {/* 오늘의 요약 (시장 흐름 + 일일 리포트 통합 카드) */}
+                {(flowByDate[date] || reportsByDate[date]) && (
+                  <a
+                    class={`pick-card pick-card--daily past-pick-card${reportsByDate[date] ? '' : ' pick-card--nolink'}`}
+                    href={reportsByDate[date] ? `/report/${date}` : undefined}
+                  >
+                    <div class="pick-label pick-label--summary">⚡ 오늘의 요약</div>
+                    <div class="pick-headline">{flowByDate[date]?.headline ?? reportsByDate[date]?.headline}</div>
+                    {Array.isArray(flowByDate[date]?.sectors) && flowByDate[date].sectors.length > 0 && (
+                      <div class="summary-sectors">
+                        {flowByDate[date].sectors.slice(0, 4).map((s: any) => (
+                          <span class={`summary-sec summary-sec--${s.dir ?? 'neutral'}`}>
+                            <span class="summary-arrow">{s.dir === 'up' ? '↑' : s.dir === 'down' ? '↓' : '→'}</span>
+                            {s.name}{s.label ? ` · ${s.label}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {reportsByDate[date] && <div class="pick-cta">바로 보기 →</div>}
                   </a>
                 )}
-                {/* 방송 글들 */}
+                {/* 개별 방송 요약 */}
+                {datePosts.length > 0 && (
+                  <div class="section-head">
+                    <div class="section-title">개별 방송 요약</div>
+                    <div class="section-desc">방송별 관점을 하나씩 확인해보세요.</div>
+                  </div>
+                )}
                 {datePosts.map((post: any) => (
-                  <a href={`/post/${post.slug}`} class="past-post-row">
+                  <a href={`/post/${post.slug}`} class="past-post-row" target="_blank" rel="noopener">
                     <div class="past-post-show">{post.show}</div>
                     <div class="past-post-title">{post.title}</div>
                     {post.summary && <p class="past-post-summary">{post.summary}</p>}
-                    <div class="past-post-cta">3분 요약 →</div>
+                    <div class="past-post-cta">바로 보기 →</div>
                   </a>
                 ))}
               </div>
@@ -279,114 +271,6 @@ const allPastDates = [
     line-height: 1.5;
   }
 
-  /* ── 지금 시장 흐름 카드 ── */
-  .mflow {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px 18px 16px;
-    margin-bottom: 14px;
-  }
-  /* 톤별 액센트: good=상승 붉은톤 / watch=주의 파란톤 / neutral=혼조 노란톤 */
-  .mflow--good    { --mflow-accent: #e5484d; }
-  .mflow--watch   { --mflow-accent: #3b7dd8; }
-  .mflow--neutral { --mflow-accent: #e0922f; }
-
-  .mflow-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-  .mflow-eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 15px;
-    font-weight: 800;
-    color: var(--mflow-accent);
-    letter-spacing: -0.01em;
-  }
-  .mflow-status {
-    font-size: 14px;
-    font-weight: 700;
-    padding: 4px 10px;
-    border-radius: 999px;
-    letter-spacing: -0.01em;
-    white-space: nowrap;
-  }
-  .mflow-status--keep {
-    background: var(--chip-bg, rgba(128, 128, 128, 0.12));
-    color: var(--text-3);
-  }
-  .mflow-status--shift {
-    background: rgba(229, 72, 77, 0.12);
-    color: #e5484d;
-  }
-
-  .mflow-headline {
-    font-size: 21px;
-    font-weight: 800;
-    color: var(--text-1);
-    line-height: 1.4;
-    letter-spacing: -0.02em;
-    margin-bottom: 12px;
-  }
-
-  .mflow-sectors {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-  .mflow-sec {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .mflow-arrow { font-weight: 900; }
-  .mflow-sec--up      { background: rgba(229, 72, 77, 0.12);  color: #e5484d; }
-  .mflow-sec--down    { background: rgba(59, 125, 216, 0.12); color: #3b7dd8; }
-  .mflow-sec--neutral { background: rgba(224, 146, 47, 0.14); color: #cf7d1a; }
-
-  /* 접었다 폈다 하는 상세 내용 */
-  .mflow-details { margin-top: 2px; }
-  .mflow-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text-3);
-    letter-spacing: -0.01em;
-    cursor: pointer;
-    list-style: none;
-    user-select: none;
-    padding: 4px 0;
-  }
-  .mflow-toggle::-webkit-details-marker { display: none; }
-  .mflow-toggle-less { display: none; }
-  .mflow-details[open] .mflow-toggle-more { display: none; }
-  .mflow-details[open] .mflow-toggle-less { display: inline; }
-  .mflow-toggle-chev { transition: transform 160ms ease; }
-  .mflow-details[open] .mflow-toggle-chev { transform: rotate(180deg); }
-
-  /* 기본은 접힘(숨김), 펼쳤을 때만 표시 (UA 기본값에 의존하지 않음) */
-  .mflow-body {
-    display: none;
-    font-size: 17px;
-    color: var(--text-2);
-    line-height: 1.7;
-    letter-spacing: -0.01em;
-    margin-top: 10px;
-  }
-  .mflow-details[open] .mflow-body { display: block; }
   /* ── 오늘 히어로 카드 ── */
   .today-hero {
     background: var(--card);
@@ -491,12 +375,63 @@ const allPastDates = [
   }
   .pick-label--daily { color: #ed781f; }
 
+  /* 오늘의 요약 카드 (시장 흐름 + 일일 리포트 통합) — 기존 PICK 라벨과 동일한 주황 스타일 */
+  .pick-label--summary {
+    color: #ed781f;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+  }
+  /* 상세 리포트가 없는 날은 링크가 아니라 정보 카드로만 표시 */
+  .pick-card--nolink { cursor: default; }
+  .pick-card--nolink:hover { opacity: 1; }
+
+  .summary-sectors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  /* 기존 시장 흐름 태그 칩과 동일한 밝은 컬러 디자인 (다크 카드 위라 불투명 톤) */
+  .summary-sec {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .summary-arrow { font-weight: 900; }
+  .summary-sec--up      { background: #f7d9db; color: #d54d52; }
+  .summary-sec--down    { background: #d9e6f8; color: #3b7dd8; }
+  .summary-sec--neutral { background: #f4e4c8; color: #c1832f; }
+
   .pick-cta {
     font-size: 13px;
     font-weight: 700;
     color: rgba(255, 255, 255, 0.45);
     margin-top: 12px;
     text-align: right;
+  }
+
+  /* ── 개별 방송 요약 섹션 헤더 (오늘의 요약과 구분되는 타이틀) ── */
+  .section-head {
+    margin: 26px 0 4px;
+  }
+  .section-title {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+    line-height: 1.35;
+  }
+  .section-desc {
+    font-size: 14px;
+    color: var(--text-3);
+    letter-spacing: -0.01em;
+    margin-top: 5px;
   }
 
   /* ── 오늘 방송 목록 (플랫) ── */
@@ -606,6 +541,8 @@ const allPastDates = [
     letter-spacing: -0.01em;
     line-height: 1.5;
   }
+  /* 펼치면 헤드라인은 '오늘의 요약' 카드가 대신 보여주므로 헤더에선 숨김 */
+  .past-card--open .past-headline { display: none; }
   .chevron-icon {
     flex-shrink: 0;
     color: var(--text-3);
