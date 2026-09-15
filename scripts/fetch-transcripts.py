@@ -44,11 +44,52 @@ def run(cmd):
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
+def _resolve_ytdlp():
+    """yt-dlp 실행 명령을 정한다.
+
+    최신 yt-dlp는 Python 3.10+ 를 요구한다. 맥OS 기본 python3(3.9)에 설치된
+    yt_dlp 모듈은 실행이 막히므로, 자체 파이썬을 포함한 standalone `yt-dlp`
+    바이너리(brew 설치)를 우선 사용한다. 없으면 `python3 -m yt_dlp`로 폴백.
+    """
+    import shutil
+    for cand in ("yt-dlp", "/opt/homebrew/bin/yt-dlp", "/usr/local/bin/yt-dlp"):
+        p = shutil.which(cand) if "/" not in cand else (cand if os.path.exists(cand) else None)
+        if p:
+            return [p]
+    return [sys.executable, "-m", "yt_dlp"]
+
+
+YTDLP = _resolve_ytdlp()
+
+
+def _cookie_args():
+    """Chrome 쿠키를 읽을 수 있으면 --cookies-from-browser를 붙인다.
+
+    맥OS TCC(개인정보 보호) 권한이 없으면 Chrome 쿠키 DB 읽기가 막힌다
+    (Operation not permitted). 최신 yt-dlp는 자체 JS 챌린지(deno)로 봇 차단을
+    우회하므로, 쿠키를 못 읽으면 그냥 생략한다. Full Disk Access를 부여하면
+    다시 쿠키를 쓰게 된다.
+    """
+    home = os.path.expanduser("~")
+    base = home + "/Library/Application Support/Google/Chrome"
+    for p in (base + "/Default/Cookies", base + "/Default/Network/Cookies"):
+        try:
+            with open(p, "rb") as fh:
+                fh.read(16)
+            return ["--cookies-from-browser", "chrome"]
+        except OSError:
+            continue
+    return []
+
+
+COOKIE_ARGS = _cookie_args()
+
+
 def get_meta(url):
     """영상 메타데이터(제목, 길이, 업로드일, ID) 가져오기"""
     r = run([
-        "python3", "-m", "yt_dlp",
-        "--cookies-from-browser", "chrome",
+        *YTDLP,
+        *COOKIE_ARGS,
         "--skip-download", "--dump-json", "--no-warnings",
         url,
     ])
@@ -89,8 +130,8 @@ def fetch_subtitle(url, vid):
     with tempfile.TemporaryDirectory() as tmp:
         tmpl = os.path.join(tmp, "%(id)s.%(ext)s")
         r = run([
-            "python3", "-m", "yt_dlp",
-            "--cookies-from-browser", "chrome",
+            *YTDLP,
+            *COOKIE_ARGS,
             "--skip-download",
             "--write-auto-sub", "--write-sub",
             "--sub-lang", "ko", "--sub-format", "vtt",
