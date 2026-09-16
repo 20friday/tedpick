@@ -117,17 +117,11 @@ const stockInfoJson = JSON.stringify(stockInfo);
     const ctx = document.createElement('div');
     ctx.className = 'hdr-ctx';
 
-    const backBtn = document.createElement('button');
-    backBtn.className = 'hdr-back-btn';
-    backBtn.setAttribute('aria-label', '뒤로');
-    backBtn.textContent = '←';
-    backBtn.addEventListener('click', () => history.back());
-
+    // 방송 글은 새 탭으로 열리므로 뒤로가기 버튼은 두지 않음
     const label = document.createElement('span');
     label.className = 'hdr-ctx-label';
     label.textContent = showEl.textContent;
 
-    ctx.appendChild(backBtn);
     ctx.appendChild(label);
     hdrInner.appendChild(ctx);
 
