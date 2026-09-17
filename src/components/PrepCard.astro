@@ -13,6 +13,15 @@ const initialEta   = isMarketHoliday ? '다음 거래일에 다시 확인' : '�
 ---
 
 <div class="prep" data-prep-card data-holiday={isMarketHoliday ? 'true' : 'false'} data-band={isMarketHoliday ? 'holiday' : ''} role="status" aria-live="polite">
+  <!-- Date + status header (full width, 지난 피드 날짜 라벨 스타일) -->
+  <div class="prep-head">
+    {todayLabel && <span class="prep-date">{todayLabel}</span>}
+    <span class="prep-status">
+      <span class="prep-dot" aria-hidden="true"></span>
+      <span class="prep-status-text">{initialStatus}</span>
+    </span>
+  </div>
+
   <!-- Mascot slot -->
   <div class="prep-cow-slot">
     <div class="prep-cow-wrap" aria-hidden="true">
@@ -122,11 +131,6 @@ const initialEta   = isMarketHoliday ? '다음 거래일에 다시 확인' : '�
 
   <!-- Text area -->
   <div class="prep-text">
-    <div class="prep-status">
-      <span class="prep-dot" aria-hidden="true"></span>
-      {todayLabel && <span class="prep-status-date">{todayLabel}</span>}
-      <span class="prep-status-text">{initialStatus}</span>
-    </div>
     <h3 class="prep-title">{initialTitle}</h3>
     <p class="prep-desc">{initialDesc}</p>
   </div>
@@ -143,8 +147,24 @@ const initialEta   = isMarketHoliday ? '다음 거래일에 다시 확인' : '�
     margin-bottom: 10px;
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 16px;
+    column-gap: 16px;
+    row-gap: 12px;
     align-items: center;
+  }
+
+  /* ── 날짜 + 상태 헤더 (카드 상단 전체폭) ── */
+  .prep-head {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+  .prep-date {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
   }
 
   /* ── Mascot slot ── */
@@ -185,12 +205,7 @@ const initialEta   = isMarketHoliday ? '다음 거래일에 다시 확인' : '�
     font-weight: 700;
     letter-spacing: -0.01em;
     color: var(--text-2);
-    margin-bottom: 8px;
-  }
-  /* 날짜 라벨 — 상태 텍스트 앞에 붙어 '오늘'이 언제인지 보여줌 */
-  .prep-status-date {
-    font-weight: 800;
-    color: var(--text-1);
+    flex-shrink: 0;
   }
 
   /* ── Pulse dot ── */
@@ -511,7 +526,8 @@ const initialEta   = isMarketHoliday ? '다음 거래일에 다시 확인' : '�
     root.querySelector<HTMLElement>('.prep-status-text')!.textContent = b.statusText;
     root.querySelector<HTMLElement>('.prep-title')!.textContent       = b.title;
     root.querySelector<HTMLElement>('.prep-desc')!.textContent        = b.desc;
-    root.querySelector<HTMLElement>('.prep-eta-text')!.textContent    = b.eta;
+    const etaEl = root.querySelector<HTMLElement>('.prep-eta-text');
+    if (etaEl) etaEl.textContent = b.eta;
   }
 
   apply();
