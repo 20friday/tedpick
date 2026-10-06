@@ -1,0 +1,656 @@
+---
+import Base from '../layouts/Base.astro';
+import PrepCard from '../components/PrepCard.astro';
+import { isKoreanMarketHoliday } from '../lib/marketHoliday';
+
+// 주간 픽 (최신 1개)
+const { data: weeklyList } = await Astro.locals.supabase
+  .from('weekly_reports')
+  .select('date, headline, sectors')
+  .eq('published', true)
+  .order('date', { ascending: false })
+  .limit(1);
+const latestWeekly = weeklyList?.[0] ?? null;
+const weeklyKeywords: any[] = ((latestWeekly as any)?.sectors ?? []).slice(0, 5);
+
+// 주간 리포트 날짜 Set + headline (지난 픽 배지용)
+const { data: weeklyDateRows } = await Astro.locals.supabase
+  .from('weekly_reports')
+  .select('date, headline')
+  .eq('published', true);
+const weeklyDateSet = new Set((weeklyDateRows ?? []).map((r: any) => r.date));
+const weeklyByDate: Record<string, { headline: string }> = {};
+for (const r of weeklyDateRows ?? []) weeklyByDate[r.date] = r;
+
+// 포스트 전체
+const { data: rawPosts } = await Astro.locals.supabase
+  .from('posts')
+  .select('title, slug, show, summary, date, display_order, created_at, is_premium')
+  .eq('published', true)
+  .order('date', { ascending: false })
+  .order('display_order', { ascending: true })
+  .order('created_at', { ascending: false });
+const posts = rawPosts ?? [];
+
+// 일일 리포트 전체
+const { data: allReports } = await Astro.locals.supabase
+  .from('daily_reports')
+  .select('date, headline')
+  .eq('published', true);
+const reportsByDate: Record<string, { headline: string }> = {};
+for (const r of allReports ?? []) reportsByDate[r.date] = r;
+
+// 시장 흐름 (전체) — 날짜별 "오늘의 요약" 카드에 사용 (headline + 섹터 방향 칩)
+const { data: flowList } = await Astro.locals.supabase
+  .from('market_flow')
+  .select('date, tone, headline, sectors')
+  .order('date', { ascending: false });
+const flowByDate: Record<string, any> = {};
+for (const f of flowList ?? []) flowByDate[f.date] = f;
+
+// 날짜 유틸
+const days = ['일', '월', '화', '수', '목', '금', '토'];
+function formatDateShort(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+}
+
+// 날짜별 그룹
+const groupedPosts: Record<string, any[]> = {};
+for (const post of posts) {
+  if (!groupedPosts[post.date]) groupedPosts[post.date] = [];
+  groupedPosts[post.date].push(post);
+}
+
+// 오늘 (KST)
+const todayKey = (() => {
+  const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+})();
+const todayDateLabel = formatDateShort(todayKey);
+const isTodayFriday = new Date(todayKey + 'T00:00:00').getDay() === 5;
+const isMarketHoliday = isKoreanMarketHoliday(todayKey);
+const todayPosts: any[] = groupedPosts[todayKey] ?? [];
+const hasTodayPosts = todayPosts.length > 0;
+const showWeeklyCard = isTodayFriday && latestWeekly?.date === todayKey;
+
+// 과거 날짜 (포스트·리포트·시장 흐름 중 하나라도 있는 날짜)
+const allPastDates = [
+  ...new Set([...Object.keys(groupedPosts), ...Object.keys(reportsByDate), ...Object.keys(flowByDate)])
+].filter(d => d < todayKey).sort((a, b) => b.localeCompare(a));
+---
+
+<Base title="피드">
+  <div class="feed-wrap">
+
+    <!-- 페이지 인트로 -->
+    <div class="feed-header">
+      <h1 class="feed-heading">오늘의 주식 방송 PICK</h1>
+      <p class="feed-sub">방송마다 흩어진 종목·섹터·이슈를 한 화면에 정리해드려요.</p>
+    </div>
+
+    <!-- ===== 오늘 히어로 카드 (오늘 콘텐츠 있을 때만) ===== -->
+    {(hasTodayPosts || flowByDate[todayKey] || reportsByDate[todayKey] || showWeeklyCard) && <div class="today-hero">
+
+      <!-- 오늘 칩 + 날짜 -->
+      <div class="today-chip-row">
+        <span class="today-chip">
+          <span class="today-dot"></span>
+          오늘
+        </span>
+        <span class="today-date-text">{todayDateLabel}</span>
+      </div>
+
+      <!-- PICK 주간 리포트 (금요일 + 오늘 날짜 주간 리포트 있을 때) -->
+      {showWeeklyCard && latestWeekly && (
+        <a href={`/weekly/${latestWeekly.date}`} class="pick-card pick-card--weekly">
+          <div class="pick-label pick-label--weekly">⚡ PICK 주간 리포트</div>
+          <div class="pick-headline">{latestWeekly.headline}</div>
+          {weeklyKeywords.length > 0 && (
+            <div class="weekly-keywords">
+              {weeklyKeywords.map((k: any) => (
+                <span class="keyword-chip">{k.name}</span>
+              ))}
+            </div>
+          )}
+          <div class="pick-cta">바로 보기 →</div>
+        </a>
+      )}
+
+      <!-- 오늘의 요약 (시장 흐름 + 일일 리포트 통합 카드) -->
+      {(flowByDate[todayKey] || reportsByDate[todayKey]) && (
+        <a
+          class={`pick-card pick-card--daily${reportsByDate[todayKey] ? '' : ' pick-card--nolink'}`}
+          href={reportsByDate[todayKey] ? `/report/${todayKey}` : undefined}
+        >
+          <div class="pick-label pick-label--summary">⚡ 오늘의 요약</div>
+          <div class="pick-headline">{flowByDate[todayKey]?.headline ?? reportsByDate[todayKey]?.headline}</div>
+          {Array.isArray(flowByDate[todayKey]?.sectors) && flowByDate[todayKey].sectors.length > 0 && (
+            <div class="summary-sectors">
+              {flowByDate[todayKey].sectors.slice(0, 4).map((s: any) => (
+                <span class={`summary-sec summary-sec--${s.dir ?? 'neutral'}`}>
+                  <span class="summary-arrow">{s.dir === 'up' ? '↑' : s.dir === 'down' ? '↓' : '→'}</span>
+                  {s.name}{s.label ? ` · ${s.label}` : ''}
+                </span>
+              ))}
+            </div>
+          )}
+          {reportsByDate[todayKey] && <div class="pick-cta">3분 요약 →</div>}
+        </a>
+      )}
+
+      <!-- 개별 방송 요약 (플랫, 디바이더로만 구분) -->
+      {hasTodayPosts && (
+        <div class="today-broadcasts">
+          <div class="section-head">
+            <div class="section-title">개별 방송 요약</div>
+            <div class="section-desc">방송별 관점을 하나씩 확인해보세요.</div>
+          </div>
+          {todayPosts.map((post: any) => (
+            <a href={`/post/${post.slug}`} class="broadcast-row" target="_blank" rel="noopener">
+              <div class="broadcast-show">{post.show}</div>
+              <h2 class="broadcast-title">{post.title}</h2>
+              <p class="broadcast-summary">{post.summary}</p>
+              <div class="broadcast-cta">3분 요약 →</div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>}
+
+    <!-- PrepCard: 오늘 포스트 없을 때 히어로 카드 바깥 -->
+    {!hasTodayPosts && (
+      <PrepCard latestSlug={posts[0]?.slug} isMarketHoliday={isMarketHoliday} todayLabel={todayDateLabel} />
+    )}
+
+    <!-- ===== 지난 PICK 아코디언 ===== -->
+    {allPastDates.length > 0 && (
+      <div class="past-picks">
+        {allPastDates.map((date: string, i: number) => {
+          const isFridayDate = new Date(date + 'T00:00:00').getDay() === 5;
+          const hasWeeklyBadge = isFridayDate && weeklyDateSet.has(date);
+          const headline = (hasWeeklyBadge ? weeklyByDate[date]?.headline : null) ?? flowByDate[date]?.headline ?? reportsByDate[date]?.headline ?? '';
+          const datePosts: any[] = groupedPosts[date] ?? [];
+          const isExtra = i >= 7;
+          return (
+            <div class={`past-card${isExtra ? ' past-card--hidden' : ''}`}>
+              <button class="past-card-btn" data-date={date} aria-expanded="false">
+                <div class="past-card-info">
+                  <div class="past-date-row">
+                    <span class="past-date-label">{formatDateShort(date)}</span>
+                    {hasWeeklyBadge && (
+                      <span class="weekly-badge">⚡ 주간 리포트</span>
+                    )}
+                  </div>
+                  {headline && <div class="past-headline">{headline}</div>}
+                </div>
+                <svg class="chevron-icon" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="m5 8 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <div class="past-card-body" data-date={date} hidden>
+                {/* 주간 픽 카드 (금요일 + 주간 리포트 있을 때) */}
+                {hasWeeklyBadge && (
+                  <a href={`/weekly/${date}`} class="pick-card pick-card--weekly past-pick-card">
+                    <div class="pick-label pick-label--weekly">⚡ PICK 주간 리포트</div>
+                    <div class="pick-headline">{weeklyByDate[date]?.headline || 'PICK 주간 리포트 보기'}</div>
+                    <div class="pick-cta">바로 보기 →</div>
+                  </a>
+                )}
+                {/* 오늘의 요약 (시장 흐름 + 일일 리포트 통합 카드) */}
+                {(flowByDate[date] || reportsByDate[date]) && (
+                  <a
+                    class={`pick-card pick-card--daily past-pick-card${reportsByDate[date] ? '' : ' pick-card--nolink'}`}
+                    href={reportsByDate[date] ? `/report/${date}` : undefined}
+                  >
+                    <div class="pick-label pick-label--summary">⚡ 오늘의 요약</div>
+                    <div class="pick-headline">{flowByDate[date]?.headline ?? reportsByDate[date]?.headline}</div>
+                    {Array.isArray(flowByDate[date]?.sectors) && flowByDate[date].sectors.length > 0 && (
+                      <div class="summary-sectors">
+                        {flowByDate[date].sectors.slice(0, 4).map((s: any) => (
+                          <span class={`summary-sec summary-sec--${s.dir ?? 'neutral'}`}>
+                            <span class="summary-arrow">{s.dir === 'up' ? '↑' : s.dir === 'down' ? '↓' : '→'}</span>
+                            {s.name}{s.label ? ` · ${s.label}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {reportsByDate[date] && <div class="pick-cta">3분 요약 →</div>}
+                  </a>
+                )}
+                {/* 개별 방송 요약 */}
+                {datePosts.length > 0 && (
+                  <div class="section-head">
+                    <div class="section-title">개별 방송 요약</div>
+                    <div class="section-desc">방송별 관점을 하나씩 확인해보세요.</div>
+                  </div>
+                )}
+                {datePosts.map((post: any) => (
+                  <a href={`/post/${post.slug}`} class="past-post-row" target="_blank" rel="noopener">
+                    <div class="past-post-show">{post.show}</div>
+                    <div class="past-post-title">{post.title}</div>
+                    {post.summary && <p class="past-post-summary">{post.summary}</p>}
+                    <div class="past-post-cta">3분 요약 →</div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+
+    {allPastDates.length > 7 && (
+      <button class="more-picks-btn" id="more-picks-btn">더 이전 PICK 보기 →</button>
+    )}
+
+  </div>
+</Base>
+
+<style>
+  .feed-wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 20px 16px 80px;
+  }
+
+  /* ── 인트로 ── */
+  .feed-header {
+    padding: 16px 0 20px;
+  }
+  .feed-heading {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: var(--text-1);
+    margin-bottom: 6px;
+  }
+  .feed-sub {
+    font-size: 15px;
+    color: var(--text-3);
+    line-height: 1.5;
+  }
+
+  /* ── 오늘 히어로 카드 ── */
+  .today-hero {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px 16px 10px;
+    margin-bottom: 14px;
+  }
+
+  .today-chip-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .today-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ed781f;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 5px 12px;
+    border-radius: 999px;
+    letter-spacing: -0.01em;
+  }
+  .today-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+  }
+  .today-date-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-2);
+    letter-spacing: -0.01em;
+  }
+
+  /* ── PICK 카드 공통 ── */
+  .pick-card {
+    display: block;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    text-decoration: none;
+    transition: opacity 160ms ease;
+  }
+  .pick-card:hover { opacity: 0.88; }
+
+  .pick-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .pick-headline {
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.45;
+    letter-spacing: -0.02em;
+  }
+
+  /* 주간 리포트 — 딥 퍼플 */
+  .pick-card--weekly {
+    background: linear-gradient(135deg, #2a1f3d 0%, #3d2f55 100%);
+  }
+  .pick-label--weekly { color: #c4a8ff; }
+
+  /* 이번 주 키워드 칩 */
+  .weekly-keywords {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .keyword-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: -0.01em;
+  }
+
+  /* 일일 리포트 — 다크 */
+  .pick-card--daily {
+    background: linear-gradient(135deg, #191f28 0%, #2d3748 100%);
+  }
+  .pick-label--daily { color: #ed781f; }
+
+  /* 오늘의 요약 카드 (시장 흐름 + 일일 리포트 통합) — 기존 PICK 라벨과 동일한 주황 스타일 */
+  .pick-label--summary {
+    color: #ed781f;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+  }
+  /* 상세 리포트가 없는 날은 링크가 아니라 정보 카드로만 표시 */
+  .pick-card--nolink { cursor: default; }
+  .pick-card--nolink:hover { opacity: 1; }
+
+  .summary-sectors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  /* 기존 시장 흐름 태그 칩과 동일한 밝은 컬러 디자인 (다크 카드 위라 불투명 톤) */
+  .summary-sec {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .summary-arrow { font-weight: 900; }
+  .summary-sec--up      { background: #f7d9db; color: #d54d52; }
+  .summary-sec--down    { background: #d9e6f8; color: #3b7dd8; }
+  .summary-sec--neutral { background: #f4e4c8; color: #c1832f; }
+
+  .pick-cta {
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.45);
+    margin-top: 12px;
+    text-align: right;
+  }
+
+  /* ── 개별 방송 요약 섹션 헤더 (오늘의 요약과 구분되는 타이틀) ── */
+  .section-head {
+    margin: 26px 0 4px;
+  }
+  .section-title {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+    line-height: 1.35;
+  }
+  .section-desc {
+    font-size: 14px;
+    color: var(--text-3);
+    letter-spacing: -0.01em;
+    margin-top: 5px;
+  }
+
+  /* ── 오늘 방송 목록 (플랫) ── */
+  .today-broadcasts {
+    display: flex;
+    flex-direction: column;
+    margin-top: 6px;
+  }
+  .broadcast-row {
+    display: block;
+    padding: 18px 0 16px;
+    border-top: 1px solid var(--border);
+    text-decoration: none;
+  }
+  .broadcast-show {
+    font-size: 14px;
+    font-weight: 800;
+    color: #ed781f;
+    letter-spacing: -0.01em;
+    margin-bottom: 7px;
+  }
+  .broadcast-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+    line-height: 1.4;
+    margin-bottom: 7px;
+  }
+  .broadcast-summary {
+    font-size: 16px;
+    color: var(--text-2);
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+  }
+  .broadcast-cta {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-3);
+    margin-top: 10px;
+    text-align: right;
+  }
+
+  /* ── 지난 PICK 아코디언 ── */
+  .past-picks {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .past-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  .past-card--open {
+    box-shadow: 0 12px 32px -12px rgba(0,0,0,0.22), 0 2px 6px -2px rgba(0,0,0,0.06);
+    transform: translateY(-1px);
+  }
+  .past-card-btn {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text-1);
+  }
+  .past-card-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .past-date-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .past-date-label {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+  }
+  .weekly-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: #2a1f3d;
+    font-size: 11px;
+    font-weight: 800;
+    color: #c4a8ff;
+    letter-spacing: -0.01em;
+    flex-shrink: 0;
+  }
+  .past-headline {
+    font-size: 17px;
+    color: var(--text-3);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.5;
+  }
+  /* 펼치면 헤드라인은 '오늘의 요약' 카드가 대신 보여주므로 헤더에선 숨김 */
+  .past-card--open .past-headline { display: none; }
+  .chevron-icon {
+    flex-shrink: 0;
+    color: var(--text-3);
+    transition: transform 220ms cubic-bezier(0.2, 0.7, 0.3, 1);
+    margin-top: 2px;
+  }
+  .past-card-btn[aria-expanded="true"] .chevron-icon {
+    transform: rotate(180deg);
+  }
+
+  /* 아코디언 본문 */
+  .past-card-body {
+    padding: 0 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .past-card-body[hidden] { display: none; }
+
+  /* 아코디언 안 픽 카드 여백 조정 */
+  .past-pick-card {
+    margin-bottom: 12px;
+  }
+  .past-pick-card:first-child {
+    margin-top: 4px;
+  }
+
+  .past-post-row {
+    display: block;
+    padding: 20px 0 18px;
+    border-top: 1px solid var(--border);
+    text-decoration: none;
+  }
+  .past-post-show {
+    font-size: 14px;
+    font-weight: 800;
+    color: #ed781f;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .past-post-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+    line-height: 1.45;
+    margin-bottom: 8px;
+  }
+  .past-post-summary {
+    font-size: 17px;
+    color: var(--text-2);
+    line-height: 1.65;
+    letter-spacing: -0.01em;
+  }
+  .past-post-cta {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-3);
+    margin-top: 12px;
+    text-align: right;
+  }
+
+
+  /* ── 지난 픽 숨김 (7개 초과분) ── */
+  .past-card--hidden {
+    display: none;
+  }
+
+  /* ── 더 이전 픽 버튼 ── */
+  .more-picks-btn {
+    display: block;
+    width: 100%;
+    padding: 22px 0 12px;
+    background: transparent;
+    border: none;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-3);
+    cursor: pointer;
+    text-align: center;
+  }
+  .more-picks-btn:hover {
+    color: var(--text-2);
+  }
+</style>
+
+<script>
+  // 아코디언 토글
+  document.querySelectorAll<HTMLButtonElement>('.past-card-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const date = btn.dataset.date!;
+      const body = document.querySelector<HTMLElement>(`.past-card-body[data-date="${date}"]`);
+      const card = btn.closest<HTMLElement>('.past-card');
+      const isOpen = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+      if (body) body.hidden = isOpen;
+      if (card) card.classList.toggle('past-card--open', !isOpen);
+    });
+  });
+
+  // 더 이전 PICK 펼치기
+  const moreBtn = document.getElementById('more-picks-btn');
+  const hiddenCards = document.querySelectorAll<HTMLElement>('.past-card--hidden');
+  if (!hiddenCards.length && moreBtn) {
+    moreBtn.style.display = 'none';
+  }
+  moreBtn?.addEventListener('click', () => {
+    hiddenCards.forEach(card => card.classList.remove('past-card--hidden'));
+    moreBtn.style.display = 'none';
+  });
+</script>

@@ -1,37 +1,5 @@
 ---
 import Base from '../layouts/Base.astro';
-
-// 내일 시장 예측 (최신 1건) + 누적 승률
-const { data: predRows } = await Astro.locals.supabase
-  .from('market_predictions')
-  .select('*')
-  .order('target_date', { ascending: false });
-const preds: any[] = predRows ?? [];
-const latestPred: any = preds[0] ?? null;
-
-// 채점된 예측만 모아 승률·점 계산 (코스피+코스닥 합산)
-const scoredPreds = preds.filter((p: any) => p.scored_at);
-let predHit = 0, predTotal = 0;
-for (const p of scoredPreds) {
-  for (const h of [p.kospi_hit, p.kosdaq_hit]) { if (h === true || h === false) { predTotal++; if (h) predHit++; } }
-}
-const predWinRate: number | null = predTotal ? Math.round((predHit / predTotal) * 100) : null;
-const scoredAsc = [...scoredPreds].reverse();
-const kospiDots: boolean[] = scoredAsc.map((p: any) => p.kospi_hit).filter((h: any) => h === true || h === false).slice(-8);
-const kosdaqDots: boolean[] = scoredAsc.map((p: any) => p.kosdaq_hit).filter((h: any) => h === true || h === false).slice(-8);
-
-// 오늘 (KST) + 날짜 포맷
-const todayKey = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-const days = ['일', '월', '화', '수', '목', '금', '토'];
-function formatDateShort(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00');
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
-}
-function formatMonthDay(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00');
-  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
-}
-const showPred = latestPred && latestPred.target_date >= todayKey;
 ---
 
 <Base title="실험실">
@@ -41,59 +9,15 @@ const showPred = latestPred && latestPred.target_date >= todayKey;
       <p class="lab-sub">AI가 방송을 분석해 시도하는 실험적인 기능들이에요.</p>
     </div>
 
-    {showPred ? (
-      <div class="mpred">
-        <div class="mpred-top">
-          <span class="mpred-eyebrow">🔮 {formatMonthDay(latestPred.target_date)} 시장 예측</span>
-          <span class="mpred-base">{formatDateShort(latestPred.base_date)} 방송 기준</span>
-        </div>
-
-        <div class="mpred-tiles">
-          <div class="mpred-tile">
-            <span class="mpred-wx">{latestPred.kospi_dir === 'up' ? '☀️' : '🌧️'}</span>
-            <div>
-              <div class="mpred-idx">코스피</div>
-              <div class={`mpred-dir mpred-dir--${latestPred.kospi_dir}`}>
-                {latestPred.kospi_dir === 'up' ? '상승 예상 ↗' : '하락 예상 ↘'}
-              </div>
-            </div>
-          </div>
-          <div class="mpred-tile">
-            <span class="mpred-wx">{latestPred.kosdaq_dir === 'up' ? '☀️' : '🌧️'}</span>
-            <div>
-              <div class="mpred-idx">코스닥</div>
-              <div class={`mpred-dir mpred-dir--${latestPred.kosdaq_dir}`}>
-                {latestPred.kosdaq_dir === 'up' ? '상승 예상 ↗' : '하락 예상 ↘'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {latestPred.reason && <p class="mpred-reason">{latestPred.reason}</p>}
-
-        {predWinRate !== null && (
-          <div class="mpred-record">
-            <div class="mpred-rate-row">
-              <div class="mpred-rate-label">지금까지 적중률</div>
-              <div class="mpred-gauge"><div class="mpred-gauge-fill" style={`width:${predWinRate}%`}></div></div>
-              <div class="mpred-rate-num">{predWinRate}<span>%</span></div>
-            </div>
-            <div class="mpred-dots-row">
-              <span class="mpred-dots-label">코스피</span>
-              {kospiDots.map((h: boolean) => <span class={`mpred-mark ${h ? 'hit' : 'miss'}`}>{h ? 'O' : 'X'}</span>)}
-            </div>
-            <div class="mpred-dots-row">
-              <span class="mpred-dots-label">코스닥</span>
-              {kosdaqDots.map((h: boolean) => <span class={`mpred-mark ${h ? 'hit' : 'miss'}`}>{h ? 'O' : 'X'}</span>)}
-            </div>
-          </div>
-        )}
-
-        <div class="mpred-disc">AI가 방송을 분석한 재미 예측이에요. 투자 판단은 스스로 해요.</div>
-      </div>
-    ) : (
-      <div class="lab-empty">아직 예측이 없어요. 다음 거래일 예측이 올라오면 여기에서 볼 수 있어요.</div>
-    )}
+    <div class="lab-prep">
+      <div class="lab-prep-icon">🧪</div>
+      <div class="lab-prep-title">새로운 실험을 준비하고 있어요</div>
+      <p class="lab-prep-body">
+        내일 시장 예측은 이제 <b>홈</b>에서 바로 볼 수 있어요.
+        실험실에서는 곧 또 다른 분석 실험을 선보일게요.
+      </p>
+      <a href="/" class="lab-prep-cta">홈에서 시장 예측 보기 →</a>
+    </div>
   </div>
 </Base>
 
@@ -113,62 +37,35 @@ const showPred = latestPred && latestPred.target_date >= todayKey;
   }
   .lab-sub { font-size: 15px; color: var(--text-3); line-height: 1.5; }
 
-  /* ── 내일 시장 예측 카드 (피드 기본 폰트 크기로) ── */
-  .mpred {
+  .lab-prep {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 18px 18px 16px;
-    margin-bottom: 14px;
+    padding: 40px 20px;
+    text-align: center;
   }
-  .mpred-top {
-    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-    margin-bottom: 14px;
+  .lab-prep-icon { font-size: 40px; line-height: 1; margin-bottom: 14px; }
+  .lab-prep-title {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
   }
-  .mpred-eyebrow { font-size: 17px; font-weight: 800; color: var(--text-1); letter-spacing: -0.01em; }
-  .mpred-base { font-size: 14px; color: var(--text-3); white-space: nowrap; }
-
-  .mpred-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-  .mpred-tile {
-    display: flex; align-items: center; gap: 12px;
-    background: rgba(128,128,128,0.06); border-radius: 12px; padding: 14px 16px;
-  }
-  .mpred-wx { font-size: 32px; line-height: 1; }
-  .mpred-idx { font-size: 14px; color: var(--text-3); margin-bottom: 3px; }
-  .mpred-dir { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
-  .mpred-dir--up { color: #e5484d; }
-  .mpred-dir--down { color: #3b7dd8; }
-
-  .mpred-reason { font-size: 17px; color: var(--text-2); line-height: 1.65; margin-bottom: 16px; }
-
-  .mpred-record { border-top: 1px solid var(--border); padding-top: 14px; }
-  .mpred-rate-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-  .mpred-rate-label { font-size: 14px; color: var(--text-3); white-space: nowrap; }
-  .mpred-gauge { flex: 1; height: 9px; background: rgba(128,128,128,0.15); border-radius: 999px; overflow: hidden; }
-  .mpred-gauge-fill { height: 100%; background: #e5484d; }
-  .mpred-rate-num { font-size: 24px; font-weight: 800; color: var(--text-1); }
-  .mpred-rate-num span { font-size: 14px; color: var(--text-3); font-weight: 700; }
-
-  .mpred-dots-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
-  .mpred-dots-label { font-size: 14px; color: var(--text-3); width: 46px; }
-  .mpred-mark {
-    width: 18px; text-align: center;
-    font-size: 16px; font-weight: 800; line-height: 1;
-    letter-spacing: 0;
-  }
-  .mpred-mark.hit { color: var(--text-1); }
-  .mpred-mark.miss { color: var(--text-3); }
-
-  .mpred-disc { font-size: 13px; color: var(--text-3); margin-top: 14px; }
-
-  .lab-empty {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 24px 18px;
+  .lab-prep-body {
     font-size: 15px;
     color: var(--text-3);
-    text-align: center;
-    line-height: 1.6;
+    line-height: 1.65;
+    max-width: 300px;
+    margin: 0 auto;
+  }
+  .lab-prep-body b { color: var(--text-2); font-weight: 800; }
+  .lab-prep-cta {
+    display: inline-block;
+    margin-top: 18px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #ed781f;
+    text-decoration: none;
   }
 </style>

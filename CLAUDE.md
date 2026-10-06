@@ -173,11 +173,11 @@ node scripts/market-flow.mjs save flow.json
 
 ---
 
-## 내일 시장 예측 (실험실 탭 `/lab`)
-방송을 AI가 분석해 내일 코스피·코스닥 상승/하락을 예측하고, 실제 종가와 대조해 누적 적중률을 쌓는다. 상단 네비 **실험실**(`src/pages/lab.astro`) 페이지에 노출(예전엔 메인 피드였으나 실험실로 분리). 카드 폰트는 피드 기본 크기.
+## 내일 시장 예측 (홈 `/`)
+방송을 AI가 분석해 내일 코스피·코스닥 상승/하락을 예측하고, 실제 종가와 대조해 누적 적중률을 쌓는다. **홈**(`src/pages/index.astro`)의 두 번째 카드로 노출(예전엔 실험실 탭이었으나 2026-10 홈 신설로 홈으로 이동). 카드 폰트는 피드 기본 크기.
 
 - **테이블:** `market_predictions` (target_date PK) — `supabase/market_predictions.sql`. RLS 없이 생성("Run without RLS").
-- **네비:** `Base.astro`의 `.hdr-tabs`에 실험실 탭(`/lab`) 추가돼 있음.
+- **네비:** 상단 네비는 `홈(/) · 방송 요약(/feed) · 종목 랭킹(/stock) · 실험실(/lab)` 4탭(`Base.astro`의 `.hdr-tabs`). 실험실은 시장예측이 홈으로 옮겨가 지금은 "준비 중" 안내만 보여줌.
 - **채점 자동화:** 네이버 지수 API(당일)·야후 일봉(과거 백필)로 실제 종가를 읽어 적중 판정. 등락 부호로 상승/하락, `hit = 예측==실제`.
 - **승률:** 코스피+코스닥 합산 하나. 카드엔 게이지 + 지수별 최근 8회 O/X(적중=O·실패=X).
 - **준법:** 지수·재미 프레이밍, 종목 매수·매도 권유 금지. reason은 요약 작성 기준 준수.
@@ -196,13 +196,50 @@ node scripts/market-prediction.mjs save prediction.json
 
 ---
 
+## 홈 (`/`) 구성
+2026-10 신설. 상단 네비 맨 앞 기본 탭. 방송을 정리한 핵심만 한 화면에 모아 보여주고, 자세한 건 각 코너에서 이어본다. 위에서부터 세 블록:
+1. **오늘의 픽 한눈에** — 그날 `market_flow` + `daily_reports` 통합 "오늘의 요약" 다크 카드(없으면 `PrepCard`).
+2. **내일 시장 예측** — 위 "내일 시장 예측" 카드(실험실에서 이동).
+3. **🔎 섹터 돋보기** — 아래 참고.
+
+> ⚠️ 라우팅: 홈이 대표 주소 `/`(`src/pages/index.astro`), 기존 방송 피드는 `/feed`(`src/pages/feed.astro`)로 이동했다. "홈으로/뒤로" 같은 `/` 링크는 이제 홈을 가리킨다.
+
+---
+
+## 🔎 섹터 돋보기 (홈 맨 아래)
+장기 투자자가 "지금 뜨는 섹터가 뭔지 + 반짝 상승인지 진짜 추세인지 + 길게 유망한 산업인지"를 공부하게 돕는 코너. 방향 칩만으로는 부족해서, 섹터마다 **주가와 업황을 나눠** 보여주고 **산업 성격**(구조적 성장/성숙 등)까지 테드픽이 종합 판단해 붙인다. 상위 **3개**만 노출.
+
+- **테이블:** `sector_spotlight` (name PK) — `supabase/sector_spotlight.sql`. RLS 없이 생성("Run without RLS").
+- **카드 구조:** 주목도 배지(heat) + 추세 상태(trend_state) + 주가/업황/산업성격 3분할 + 풀이(body) + ⚠️ 체크포인트(caution) + 방송 근거 보기(evidence).
+- **heat:** hot(🔥 가장 뜨는) / rising(새로 주목) / steady(꾸준히 관심).
+- **trend_state:** alive(추세 살아있음·녹색) / fading(기세 꺾이는 중·파랑) / pop(반짝 반등 주의·빨강).
+- **price_dir·biz_dir:** up(빨강·강세) / down(파랑·약세) / flat(노랑·중립). 주가와 업황은 따로 판단(예: 반도체는 주가 조정이어도 업황 양호).
+- **industry_type:** growth(구조적 성장) / mature(성숙·역풍) / decline(사양·쇠퇴) / turnaround(턴어라운드). 방송에 없는 **장기 산업 관점**이라 테드픽이 일반 지식+방송 근거로 종합. "반짝 상승(백화점 같은)"을 걸러주는 핵심 축.
+- **준법:** 섹터·산업 해설까지만, 특정 종목 매수·매도 권유 금지. 요약 작성 기준(실명 금지·투자권유 금지·시장 해설로 재구성) 준수.
+- **근거 링크:** evidence_href 비우면 `/feed`로 연결.
+
+### 갱신 워크플로우 (오늘의 픽 등록할 때마다)
+```bash
+# 1) 재료 뽑기 (최근 14일 섹터 흐름 + 많이 언급된 종목 + 직전 돋보기)
+node scripts/sector-spotlight.mjs gather
+# 2) Claude가 재료를 읽고 spotlight.json(섹터 3개 안팎) 작성 → 저장
+node scripts/sector-spotlight.mjs save spotlight.json
+```
+- spotlight.json: `[{ "name":"반도체", "heat":"hot", "trend_state":"alive", "price_dir":"up", "price_label":"조정 딛고 반등", "biz_dir":"up", "biz_label":"매우 양호", "industry_type":"growth", "body":"…", "caution":"…", "evidence_note":"…", "evidence_href":"/feed" }]`
+- rank(노출 순서)는 배열 순서대로 자동. 값이 규칙 밖이면 안전한 기본값으로 보정.
+- 데이터 없으면 코너가 자동으로 숨겨짐.
+
+---
+
 ## 주요 컴포넌트 구조
 | 파일 | 역할 |
 |------|------|
 | `src/components/PrepCard.astro` | 오늘 피드가 없을 때 보여주는 안내 카드 |
 | `src/lib/marketHoliday.ts` | 국내 증시 휴장일 판단 유틸 |
 | `src/layouts/Base.astro` | 공통 레이아웃 (GA4 스크립트 포함) |
-| `src/pages/index.astro` | 메인 피드 페이지 |
+| `src/pages/index.astro` | **홈** (오늘의 픽·내일 예측·섹터 돋보기) |
+| `src/pages/feed.astro` | 방송 요약 피드 (`/feed`, 예전 홈) |
+| `src/pages/lab.astro` | 실험실 (현재 "준비 중" 안내) |
 | `src/pages/admin/index.astro` | 어드민 대시보드 |
 
 ---
@@ -305,7 +342,7 @@ node scripts/market-prediction.mjs save prediction.json
 ---
 
 ## 디자인 원칙
-- 기준 파일: `src/pages/index.astro` (피드 페이지)
+- 기준 파일: `src/pages/feed.astro` (방송 요약 피드) · `src/pages/index.astro` (홈)
 - 폰트 크기: 본문·입력 17px / 보조 15px / 작은 라벨 14px / 버튼 17px / 제목 20px+
 - 모든 새 페이지는 이 기준 반영할 것
 

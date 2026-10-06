@@ -58,7 +58,8 @@ const { user } = Astro.locals;
         )}
       </div>
       {sectionNav && <nav class="hdr-tabs" style="border-top: none;">
-        <a href="/" class:list={['hdr-tab', { active: Astro.url.pathname === '/' }]}>방송 요약</a>
+        <a href="/" class:list={['hdr-tab', { active: Astro.url.pathname === '/' }]}>홈</a>
+        <a href="/feed" class:list={['hdr-tab', { active: Astro.url.pathname.startsWith('/feed') }]}>방송 요약</a>
         <a href="/stock" class:list={['hdr-tab', { active: Astro.url.pathname.startsWith('/stock') }]}>종목 랭킹</a>
         <a href="/lab" class:list={['hdr-tab', { active: Astro.url.pathname.startsWith('/lab') }]}>실험실</a>
       </nav>}
@@ -293,7 +294,7 @@ const { user } = Astro.locals;
     gap: 0;
   }
   .hdr-tab {
-    padding: 10px 16px 9px;
+    padding: 10px 13px 9px;
     font-size: 15px;
     font-weight: 700;
     color: var(--text-3);
