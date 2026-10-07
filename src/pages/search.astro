@@ -45,7 +45,7 @@ const stockAliasMap = JSON.stringify(
 
   .search-hdr {
     position: sticky; top: 0; z-index: 50;
-    background: rgba(250,249,246,0.82);
+    background: rgba(245,245,247,0.82);
     -webkit-backdrop-filter: saturate(180%) blur(14px);
     backdrop-filter: saturate(180%) blur(14px);
     border-bottom: 1px solid rgba(0,0,0,0.06);
@@ -145,15 +145,13 @@ const stockAliasMap = JSON.stringify(
   .result-card {
     display: flex; align-items: center; gap: 12px;
     padding: 16px 14px;
-    background: var(--card);
-    border: 0.5px solid var(--divider);
+    background: var(--card); box-shadow: var(--shadow-card);
     border-radius: 12px;
     text-decoration: none;
     transition: box-shadow 160ms ease, transform 160ms ease, border-color 160ms ease;
   }
   .result-card:hover {
-    box-shadow: 0 8px 22px -12px rgba(0,0,0,0.18);
-    border-color: var(--text-3);
+    box-shadow: var(--shadow-card-hover);
     transform: translateY(-1px);
   }
   .result-info { flex: 1; min-width: 0; }

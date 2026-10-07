@@ -257,7 +257,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
 
   /* ── 오늘의 요약 카드 (다크) ── */
   .pick-card {
-    display: block; border-radius: 14px; padding: 16px;
+    display: block; border-radius: 14px; padding: 16px; box-shadow: var(--shadow-card);
     text-decoration: none; transition: opacity 160ms ease;
   }
   .pick-card:hover { opacity: 0.88; }
@@ -279,7 +279,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
   .pick-cta { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.45); margin-top: 13px; text-align: right; }
 
   /* ── 내일 시장 예측 카드 ── */
-  .mpred { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .mpred { background: var(--card); box-shadow: var(--shadow-card); border-radius: 14px; padding: 16px; }
   .mpred-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 13px; }
   .mpred-eyebrow { font-size: 17px; font-weight: 800; color: var(--text-1); letter-spacing: -0.01em; }
   .mpred-base { font-size: 13px; color: var(--text-3); white-space: nowrap; }
@@ -307,7 +307,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
 
   /* ── 섹터 돋보기 카드 ── */
   .spot-card {
-    background: var(--card); border: 1px solid var(--border);
+    background: var(--card); box-shadow: var(--shadow-card);
     border-radius: 14px; padding: 16px; margin-bottom: 12px;
   }
   .spot-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }

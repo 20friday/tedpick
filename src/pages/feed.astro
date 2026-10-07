@@ -274,7 +274,7 @@ const allPastDates = [
   /* ── 오늘 히어로 카드 ── */
   .today-hero {
     background: var(--card);
-    border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
     border-radius: 18px;
     padding: 18px 16px 10px;
     margin-bottom: 14px;
@@ -484,13 +484,13 @@ const allPastDates = [
   }
   .past-card {
     background: var(--card);
-    border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
     border-radius: 14px;
     overflow: hidden;
     transition: box-shadow 200ms ease, transform 200ms ease;
   }
   .past-card--open {
-    box-shadow: 0 12px 32px -12px rgba(0,0,0,0.22), 0 2px 6px -2px rgba(0,0,0,0.06);
+    box-shadow: var(--shadow-card-hover);
     transform: translateY(-1px);
   }
   .past-card-btn {
