@@ -548,7 +548,10 @@ const stockAliasMap = JSON.stringify(
       };
     });
 
-    renderIdle();
+    // 홈 검색창에서 넘어온 검색어(?q=)가 있으면 바로 결과를 보여준다.
+    var initialQ = new URLSearchParams(location.search).get('q');
+    if (initialQ) { inputEl.value = initialQ; onInput(); }
+    else renderIdle();
     inputEl.focus();
   })
   .catch(function () {
