@@ -277,6 +277,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
   const suggest = document.getElementById('hero-suggest');
   const clearAll = document.getElementById('hero-recent-clear');
   const input = document.getElementById('hero-search-input') as HTMLInputElement | null;
+  const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
   function loadRecent(): Recent[] {
     try {
@@ -406,7 +407,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
 
   function render() {
     if (!drop || !recentSec || !suggest || !input) return;
-    const focused = document.activeElement === input;
+    const focused = !isTouch && document.activeElement === input;
     const q = input.value.trim();
     if (q) {
       recentSec.hidden = true;
@@ -421,16 +422,34 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
     }
   }
 
+  // 휴대폰(터치 화면)에선 네이버 앱처럼 검색창을 누르면 검색 페이지로 부드럽게 넘어간다.
+  // PC에선 지금처럼 홈에서 바로 최근 검색·종목 미리보기를 펼친다.
+  if (isTouch && input) {
+    input.readOnly = true;  // 홈에서 키보드가 잠깐 떴다 사라지는 걸 막음
+    input.addEventListener('click', () => { location.href = '/search'; });
+  }
+
   clearAll?.addEventListener('click', () => { saveRecent([]); render(); });
   // 목록을 누를 때 검색창 포커스가 빠지지 않게 해서, 클릭 전에 목록이 닫히는 걸 막는다.
   drop?.addEventListener('mousedown', (e) => e.preventDefault());
-  input?.addEventListener('focus', () => { loadIndex(); render(); });
+  input?.addEventListener('focus', () => { if (!isTouch) loadIndex(); render(); });
   input?.addEventListener('blur', render);
-  input?.addEventListener('input', render);
+  input?.addEventListener('input', () => { if (!isTouch) loadIndex(); render(); });
   render();
   // 뒤로가기로 돌아왔을 때(페이지 캐시) 최신 기록으로 다시 그림
   window.addEventListener('pageshow', render);
 </script>
+
+<style is:global>
+  /* 홈 ↔ 검색 페이지 부드러운 전환 (지원 브라우저에서만, 동작 줄이기 설정 존중) */
+  @media (prefers-reduced-motion: no-preference) {
+    @view-transition { navigation: auto; }
+  }
+  ::view-transition-group(tp-search-bar) {
+    animation-duration: 340ms;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+</style>
 
 <style>
   .home-wrap {
@@ -451,6 +470,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
     margin-top: 8px;
   }
   .hero-search {
+    view-transition-name: tp-search-bar;
     display: flex; align-items: center; gap: 10px;
     height: 58px; padding: 0 18px; margin-top: 20px;
     background: var(--card); border-radius: 16px;
