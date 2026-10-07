@@ -90,22 +90,24 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
     <section class="home-hero">
       <h1 class="hero-title">경제 방송, 3분이면 충분해요</h1>
       <p class="hero-desc">매일 4개 경제 방송을 정리해 시장 흐름과 주목받는 종목을 한눈에 보여드려요.</p>
+      <div class="hero-search-wrap">
       <form class="hero-search" action="/search" method="get" role="search">
         <svg class="hero-search-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.9"/>
           <path d="m20 20-3.4-3.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
         </svg>
-        <input class="hero-search-input" type="search" name="q"
+        <input class="hero-search-input" id="hero-search-input" type="search" name="q"
           placeholder="궁금한 종목을 검색해 보세요"
           autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="종목 검색" />
       </form>
-      <!-- 최근 검색어: 검색 페이지와 같은 저장소(localStorage)를 읽어 브라우저에서 그림 -->
+      <!-- 최근 검색어: 검색창이 활성화됐을 때만 아래로 펼쳐짐. 검색 페이지와 같은 저장소(localStorage)를 읽음 -->
       <div class="hero-recent" id="hero-recent" hidden>
         <div class="hero-recent-head">
           <span class="hero-recent-title">최근 검색</span>
           <button type="button" class="hero-recent-clear" id="hero-recent-clear">전체 삭제</button>
         </div>
         <div class="hero-recent-list" id="hero-recent-list"></div>
+      </div>
       </div>
     </section>
 
@@ -253,6 +255,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
   const box = document.getElementById('hero-recent');
   const list = document.getElementById('hero-recent-list');
   const clearAll = document.getElementById('hero-recent-clear');
+  const input = document.getElementById('hero-search-input');
 
   function loadRecent(): { name: string; ts: number }[] {
     try {
@@ -267,7 +270,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
   function render() {
     if (!box || !list) return;
     const recent = loadRecent().slice(0, MAX_CHIPS);
-    box.hidden = recent.length === 0;
+    box.hidden = recent.length === 0 || document.activeElement !== input;
     list.replaceChildren(...recent.map((r) => {
       const chip = document.createElement('span');
       chip.className = 'hero-chip';
@@ -290,6 +293,10 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
   }
 
   clearAll?.addEventListener('click', () => { saveRecent([]); render(); });
+  // 목록을 누를 때 검색창 포커스가 빠지지 않게 해서, 클릭 전에 목록이 닫히는 걸 막는다.
+  box?.addEventListener('mousedown', (e) => e.preventDefault());
+  input?.addEventListener('focus', render);
+  input?.addEventListener('blur', render);
   render();
   // 뒤로가기로 돌아왔을 때(페이지 캐시) 최신 기록으로 다시 그림
   window.addEventListener('pageshow', render);
@@ -332,7 +339,12 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
   .hero-search-input::placeholder { color: var(--text-3); font-weight: 500; }
   .hero-search-input::-webkit-search-cancel-button { display: none; }
 
-  .hero-recent { margin-top: 16px; }
+  .hero-search-wrap { position: relative; }
+  .hero-recent {
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 20;
+    background: var(--card); border-radius: 16px; padding: 14px 16px 16px;
+    box-shadow: var(--shadow-card-hover);
+  }
   .hero-recent-head { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 8px; }
   .hero-recent-title { font-size: 14px; font-weight: 700; color: var(--text-3); }
   .hero-recent-clear { font-size: 14px; font-weight: 600; color: var(--text-3); }
@@ -340,8 +352,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
   .hero-recent-list { display: flex; flex-wrap: wrap; gap: 8px; }
   :global(.hero-chip) {
     display: inline-flex; align-items: center;
-    background: var(--card); border-radius: 999px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    background: var(--flat-bg); border-radius: 999px;
   }
   :global(.hero-chip-go) {
     padding: 8px 4px 8px 14px; font-size: 15px; font-weight: 600; color: var(--text-1);
@@ -351,7 +362,7 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
     display: inline-flex; align-items: center; justify-content: center;
     width: 28px; height: 28px; margin-right: 4px; border-radius: 50%; color: var(--text-3);
   }
-  :global(.hero-chip-del:hover) { background: var(--border); color: var(--text-1); }
+  :global(.hero-chip-del:hover) { background: var(--divider); color: var(--text-1); }
 
   /* 섹션 라벨 */
   .home-sec-label {
