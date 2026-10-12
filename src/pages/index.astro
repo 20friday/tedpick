@@ -55,14 +55,15 @@ const { data: predRows } = await Astro.locals.supabase
 const preds: any[] = predRows ?? [];
 const latestPred: any = preds[0] ?? null;
 const scoredPreds = preds.filter((p: any) => p.scored_at);
-let predHit = 0, predTotal = 0;
-for (const p of scoredPreds) {
-  for (const h of [p.kospi_hit, p.kosdaq_hit]) { if (h === true || h === false) { predTotal++; if (h) predHit++; } }
+// 지수별 적중률 (채점된 예측만)
+function winRate(key: 'kospi_hit' | 'kosdaq_hit'): number | null {
+  const hits = scoredPreds.map((p: any) => p[key]).filter((h: any) => h === true || h === false);
+  return hits.length ? Math.round((hits.filter(Boolean).length / hits.length) * 100) : null;
 }
-const predWinRate: number | null = predTotal ? Math.round((predHit / predTotal) * 100) : null;
-const scoredAsc = [...scoredPreds].reverse();
-const kospiDots: boolean[] = scoredAsc.map((p: any) => p.kospi_hit).filter((h: any) => h === true || h === false).slice(-8);
-const kosdaqDots: boolean[] = scoredAsc.map((p: any) => p.kosdaq_hit).filter((h: any) => h === true || h === false).slice(-8);
+const predRates = [
+  { label: '코스피', rate: winRate('kospi_hit') },
+  { label: '코스닥', rate: winRate('kosdaq_hit') },
+].filter((r) => r.rate !== null) as { label: string; rate: number }[];
 const showPred = latestPred && latestPred.target_date >= todayKey;
 
 // ── 섹터 돋보기 (상위 3개) ──
@@ -181,21 +182,16 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
             </div>
           </div>
           {latestPred.reason && <p class="mpred-reason">{latestPred.reason}</p>}
-          {predWinRate !== null && (
+          {predRates.length > 0 && (
             <div class="mpred-record">
-              <div class="mpred-rate-row">
-                <div class="mpred-rate-label">지금까지 적중률</div>
-                <div class="mpred-gauge"><div class="mpred-gauge-fill" style={`width:${predWinRate}%`}></div></div>
-                <div class="mpred-rate-num">{predWinRate}<span>%</span></div>
-              </div>
-              <div class="mpred-dots-row">
-                <span class="mpred-dots-label">코스피</span>
-                {kospiDots.map((h: boolean) => <span class={`mpred-mark ${h ? 'hit' : 'miss'}`}>{h ? 'O' : 'X'}</span>)}
-              </div>
-              <div class="mpred-dots-row">
-                <span class="mpred-dots-label">코스닥</span>
-                {kosdaqDots.map((h: boolean) => <span class={`mpred-mark ${h ? 'hit' : 'miss'}`}>{h ? 'O' : 'X'}</span>)}
-              </div>
+              <div class="mpred-rate-label">지금까지 적중률</div>
+              {predRates.map((r) => (
+                <div class="mpred-rate-row">
+                  <span class="mpred-rate-idx">{r.label}</span>
+                  <div class="mpred-gauge"><div class="mpred-gauge-fill" style={`width:${r.rate}%`}></div></div>
+                  <div class="mpred-rate-num">{r.rate}<span>%</span></div>
+                </div>
+              ))}
             </div>
           )}
           <div class="mpred-disc">AI가 방송을 분석한 재미 예측이에요. 투자 판단은 스스로 해요.</div>
@@ -593,17 +589,13 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
   .mpred-dir--down { color: #3b7dd8; }
   .mpred-reason { font-size: 16px; color: var(--text-2); line-height: 1.6; margin: 0 0 15px; }
   .mpred-record { border-top: 1px solid var(--border); padding-top: 13px; }
-  .mpred-rate-row { display: flex; align-items: center; gap: 12px; margin-bottom: 11px; }
-  .mpred-rate-label { font-size: 13px; color: var(--text-3); white-space: nowrap; }
+  .mpred-rate-label { font-size: 13px; color: var(--text-3); margin-bottom: 6px; }
+  .mpred-rate-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .mpred-rate-idx { font-size: 14px; font-weight: 700; color: var(--text-2); width: 46px; flex-shrink: 0; }
   .mpred-gauge { flex: 1; height: 9px; background: rgba(128,128,128,0.15); border-radius: 999px; overflow: hidden; }
   .mpred-gauge-fill { height: 100%; background: #e5484d; }
-  .mpred-rate-num { font-size: 22px; font-weight: 800; color: var(--text-1); }
+  .mpred-rate-num { font-size: 22px; font-weight: 800; color: var(--text-1); min-width: 58px; text-align: right; }
   .mpred-rate-num span { font-size: 13px; color: var(--text-3); font-weight: 700; }
-  .mpred-dots-row { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
-  .mpred-dots-label { font-size: 13px; color: var(--text-3); width: 46px; }
-  .mpred-mark { width: 18px; text-align: center; font-size: 16px; font-weight: 800; line-height: 1; }
-  .mpred-mark.hit { color: var(--text-1); }
-  .mpred-mark.miss { color: #c7ccd1; }
   .mpred-disc { font-size: 13px; color: var(--text-3); margin-top: 14px; }
 
   /* ── 섹터 돋보기 카드 ── */
