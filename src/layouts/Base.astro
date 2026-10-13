@@ -61,6 +61,7 @@ const { user } = Astro.locals;
         <a href="/" class:list={['hdr-tab', { active: Astro.url.pathname === '/' }]}>홈</a>
         <a href="/feed" class:list={['hdr-tab', { active: Astro.url.pathname.startsWith('/feed') }]}>방송 요약</a>
         <a href="/stock" class:list={['hdr-tab', { active: Astro.url.pathname.startsWith('/stock') }]}>종목 랭킹</a>
+        <a href="/sector" class:list={['hdr-tab', { active: Astro.url.pathname.startsWith('/sector') }]}>섹터 돋보기</a>
         <a href="/lab" class:list={['hdr-tab', { active: Astro.url.pathname.startsWith('/lab') }]}>실험실</a>
       </nav>}
     </header>}
@@ -292,7 +293,10 @@ const { user } = Astro.locals;
     margin: 0 auto;
     padding: 0 8px;
     gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+  .hdr-tabs::-webkit-scrollbar { display: none; }
   .hdr-tab {
     padding: 10px 13px 9px;
     font-size: 15px;
@@ -302,6 +306,12 @@ const { user } = Astro.locals;
     border-bottom: 2px solid transparent;
     transition: color 160ms ease, border-color 160ms ease;
     letter-spacing: -0.01em;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  /* 휴대폰 폭에선 5개 탭이 한 줄에 들어가도록 간격을 줄인다 */
+  @media (max-width: 420px) {
+    .hdr-tab { padding: 10px 9px 9px; }
   }
   .hdr-tab:hover { color: var(--text-2); }
   .hdr-tab.active {

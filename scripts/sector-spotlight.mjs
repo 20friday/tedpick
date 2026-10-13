@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 섹터 돋보기 도구 (홈 맨 아래 코너)
+ * 섹터 돋보기 도구 (홈 상위 3개 + 섹터 돋보기 메뉴 /sector)
  *
  * 홈에 보여줄 "지금 주목받는 섹터" 카드 재료를 모으고(gather), 테드픽이 쓴 JSON을
  * 저장(save)한다. 카드는 섹터마다 주가/업황을 나눠 보여주고, 길게 투자할 산업인지
@@ -14,6 +14,7 @@
  *
  * 2) 돋보기 저장 (Claude가 쓴 JSON을 upsert) — 상위 3개만 홈에 노출돼요
  *      node scripts/sector-spotlight.mjs save spotlight.json
+ *      node scripts/sector-spotlight.mjs save spotlight.json --date 2026-10-12   # 분석일 지정(기본 오늘)
  *    spotlight.json 형식 (섹터 배열):
  *      [
  *        {
@@ -34,8 +35,11 @@
  *    · rank(노출 순서)는 배열 순서대로 1,2,3… 자동으로 매겨져요.
  *    · 값이 규칙 밖이면 안전한 기본값으로 보정돼요.
  *    · 홈은 rank 상위 3개만 보여줘요. 더 써도 되지만 노출은 3개까지.
+ *    · 저장할 때 분석 기록(sector_spotlight_history)에도 그날 날짜로 한 줄씩 쌓여요.
+ *      섹터 돋보기 메뉴는 "가장 최근 분석일"의 섹터를 지금 주목 섹터로, 나머지를 지난 분석 섹터로 보여줘요.
+ *      → 그날 주목 섹터는 한 번에 모두(3개 안팎) 저장해 주세요.
  *
- * ⚠️ 저장 전 sector_spotlight 테이블이 있어야 한다 (supabase/sector_spotlight.sql 실행).
+ * ⚠️ 저장 전 테이블이 있어야 한다 (supabase/sector_spotlight.sql, sector_spotlight_history.sql 실행).
  */
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -130,7 +134,7 @@ async function gather(days) {
 }
 
 // ── save: 돋보기 JSON upsert (rank 자동 매김) ────────────────
-async function save(file) {
+async function save(file, analyzedOn) {
   const raw = JSON.parse(readFileSync(file, 'utf8'));
   const list = Array.isArray(raw) ? raw : [raw];
   if (!list.length) { console.error('❌ 섹터가 비어 있어요.'); process.exit(1); }
@@ -167,7 +171,17 @@ async function save(file) {
     .from('sector_spotlight').upsert(rows, { onConflict: 'name' });
   if (error) { console.error('❌ 저장 실패:', error.message); process.exit(1); }
 
-  console.log(`✅ 섹터 돋보기 ${rows.length}개 저장 완료 (홈엔 rank 상위 3개 노출)`);
+  // 분석 기록에도 쌓기 (같은 날 같은 섹터는 덮어씀)
+  const histRows = rows.map(({ updated_at, ...r }) => ({ ...r, analyzed_on: analyzedOn }));
+  const { error: histErr } = await supabase
+    .from('sector_spotlight_history').upsert(histRows, { onConflict: 'analyzed_on,name' });
+  if (histErr) {
+    console.error('❌ 분석 기록 저장 실패:', histErr.message);
+    console.error('   supabase/sector_spotlight_history.sql 을 먼저 실행했는지 확인해 주세요.');
+    process.exit(1);
+  }
+
+  console.log(`✅ 섹터 돋보기 ${rows.length}개 저장 완료 (분석일 ${analyzedOn} · 홈엔 rank 상위 3개 노출)`);
   for (const r of rows.sort((a, b) => a.rank - b.rank)) {
     console.log(`   #${r.rank} ${r.name} · ${r.heat}/${r.trend_state}/${r.industry_type}`);
     console.log(`      주가 ${r.price_dir}(${r.price_label}) · 업황 ${r.biz_dir}(${r.biz_label})`);
@@ -182,8 +196,11 @@ if (cmd === 'gather') {
   if (di >= 0) { days = parseInt(args[di + 1], 10) || 14; }
   await gather(days);
 } else if (cmd === 'save') {
-  if (!args[0]) { console.error('사용법: node scripts/sector-spotlight.mjs save spotlight.json'); process.exit(1); }
-  await save(args[0]);
+  if (!args[0]) { console.error('사용법: node scripts/sector-spotlight.mjs save spotlight.json [--date YYYY-MM-DD]'); process.exit(1); }
+  const di = args.indexOf('--date');
+  const analyzedOn = di >= 0 ? args[di + 1] : isoDaysAgo(0);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(analyzedOn ?? '')) { console.error('❌ --date 는 YYYY-MM-DD 형식이에요.'); process.exit(1); }
+  await save(args[0], analyzedOn);
 } else {
-  console.log('사용법:\n  node scripts/sector-spotlight.mjs gather [--days 14]\n  node scripts/sector-spotlight.mjs save spotlight.json');
+  console.log('사용법:\n  node scripts/sector-spotlight.mjs gather [--days 14]\n  node scripts/sector-spotlight.mjs save spotlight.json [--date YYYY-MM-DD]');
 }

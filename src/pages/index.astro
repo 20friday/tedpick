@@ -3,6 +3,8 @@ import Base from '../layouts/Base.astro';
 import PrepCard from '../components/PrepCard.astro';
 import { isKoreanMarketHoliday } from '../lib/marketHoliday';
 import { stockInfo } from '../lib/stockInfo';
+import SectorCard from '../components/SectorCard.astro';
+import { groupSectors, loadSectorRecords } from '../lib/sectorSpotlight';
 
 // 검색 미리보기용 종목명 → 별칭 맵 (검색 페이지와 동일)
 const stockAliasMap = JSON.stringify(
@@ -66,30 +68,8 @@ const predRates = [
 ].filter((r) => r.rate !== null) as { label: string; rate: number }[];
 const showPred = latestPred && latestPred.target_date >= todayKey;
 
-// ── 섹터 돋보기 (상위 3개) ──
-const { data: spotRows } = await Astro.locals.supabase
-  .from('sector_spotlight').select('*')
-  .order('rank', { ascending: true }).limit(3);
-const spotlights: any[] = spotRows ?? [];
-
-// 섹터 돋보기 표시용 매핑
-const HEAT: Record<string, { label: string; cls: string }> = {
-  hot: { label: '🔥 가장 뜨는 섹터', cls: 'heat-hot' },
-  rising: { label: '새로 주목', cls: 'heat-mute' },
-  steady: { label: '꾸준히 관심', cls: 'heat-mute' },
-};
-const TREND: Record<string, { label: string; cls: string }> = {
-  alive: { label: '추세 살아있음', cls: 'trend-alive' },
-  fading: { label: '기세 꺾이는 중', cls: 'trend-fading' },
-  pop: { label: '반짝 반등 주의', cls: 'trend-pop' },
-};
-const INDUSTRY: Record<string, { label: string; cls: string }> = {
-  growth: { label: '구조적 성장', cls: 'ind-growth' },
-  mature: { label: '성숙·역풍', cls: 'ind-mute' },
-  decline: { label: '사양·쇠퇴', cls: 'ind-decline' },
-  turnaround: { label: '턴어라운드', cls: 'ind-turn' },
-};
-function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' : '→'; }
+// ── 섹터 돋보기 (지금 주목 섹터 상위 3개) ──
+const spotlights = groupSectors(await loadSectorRecords(Astro.locals.supabase)).current.slice(0, 3);
 ---
 
 <Base title="홈">
@@ -199,56 +179,14 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
       </div>
     )}
 
-    <!-- ③ 섹터 돋보기 -->
+    <!-- ③ 섹터 돋보기 (상위 3개 · 자세한 건 섹터 돋보기 메뉴에서) -->
     {spotlights.length > 0 && (
       <div class="home-block">
-        <div class="home-sec-label spot-label">🔎 섹터 돋보기</div>
-        <p class="spot-desc">지금 방송에서 주목받는 섹터를, 주가와 업황을 나눠 보고 길게 투자할 가치가 있는지까지 정리했어요.</p>
-        {spotlights.map((s: any) => {
-          const heat = HEAT[s.heat] ?? HEAT.rising;
-          const trend = TREND[s.trend_state] ?? TREND.alive;
-          const industry = INDUSTRY[s.industry_type] ?? INDUSTRY.mature;
-          return (
-            <div class="spot-card">
-              <div class="spot-head">
-                <div class="spot-head-left">
-                  <span class="spot-name">{s.name}</span>
-                  <span class={`spot-heat ${heat.cls}`}>{heat.label}</span>
-                </div>
-                <span class={`spot-trend ${trend.cls}`}>{trend.label}</span>
-              </div>
-
-              <div class="spot-metrics">
-                <div class="spot-metric">
-                  <div class="spot-metric-k">주가</div>
-                  <div class={`spot-metric-v dir-${s.price_dir}`}>{s.price_label || '-'} {dirArrow(s.price_dir)}</div>
-                </div>
-                <div class="spot-metric">
-                  <div class="spot-metric-k">업황</div>
-                  <div class={`spot-metric-v dir-${s.biz_dir}`}>{s.biz_label || '-'} {dirArrow(s.biz_dir)}</div>
-                </div>
-                <div class="spot-metric">
-                  <div class="spot-metric-k">산업 성격</div>
-                  <div class={`spot-metric-v ${industry.cls}`}>{industry.label}</div>
-                </div>
-              </div>
-
-              <p class="spot-body">{s.body}</p>
-
-              {s.caution && (
-                <div class="spot-caution">
-                  <span class="spot-caution-ic">⚠️</span>
-                  <span class="spot-caution-tx">{s.caution}</span>
-                </div>
-              )}
-
-              <a class="spot-ev" href={s.evidence_href || '/feed'}>
-                <span class="spot-ev-note">{s.evidence_note || '방송 근거 살펴보기'}</span>
-                <span class="spot-ev-cta">방송 근거 보기 →</span>
-              </a>
-            </div>
-          );
-        })}
+        <div class="spot-hd">
+          <span class="spot-label">🔎 섹터 돋보기</span>
+          <a class="spot-more" href="/sector">전체보기 ›</a>
+        </div>
+        {spotlights.map((s) => <SectorCard sector={s.latest} />)}
       </div>
     )}
 
@@ -536,8 +474,10 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
     letter-spacing: -0.01em;
     margin: 0 2px 8px;
   }
+  .spot-hd { display: flex; align-items: baseline; justify-content: space-between; margin: 0 2px 10px; }
   .spot-label { font-size: 18px; font-weight: 800; color: var(--text-1); letter-spacing: -0.02em; }
-  .spot-desc { font-size: 14px; color: var(--text-3); line-height: 1.55; margin: 0 2px 14px; }
+  .spot-more { font-size: 15px; font-weight: 700; color: var(--text-3); text-decoration: none; }
+  .spot-more:hover { color: var(--text-1); }
 
   /* 오늘 칩 */
   .today-chip-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
@@ -598,48 +538,4 @@ function dirArrow(d: string) { return d === 'up' ? '↑' : d === 'down' ? '↓' 
   .mpred-rate-num span { font-size: 13px; color: var(--text-3); font-weight: 700; }
   .mpred-disc { font-size: 13px; color: var(--text-3); margin-top: 14px; }
 
-  /* ── 섹터 돋보기 카드 ── */
-  .spot-card {
-    background: var(--card); box-shadow: var(--shadow-card);
-    border-radius: 14px; padding: 16px; margin-bottom: 12px;
-  }
-  .spot-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
-  .spot-head-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
-  .spot-name { font-size: 18px; font-weight: 800; color: var(--text-1); letter-spacing: -0.02em; }
-  .spot-heat, .spot-trend {
-    display: inline-flex; align-items: center;
-    font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
-  }
-  .heat-hot { background: #fff0e6; color: #d1631a; }
-  .heat-mute { background: #eef1f4; color: #4e5968; }
-  .trend-alive { background: #e6f6ee; color: #15905c; }
-  .trend-fading { background: #e3edff; color: #1763d6; }
-  .trend-pop { background: #fdeaea; color: #c0392b; }
-
-  .spot-metrics { display: flex; gap: 8px; margin-bottom: 12px; }
-  .spot-metric { flex: 1; min-width: 0; background: #f9fafb; border-radius: 10px; padding: 10px 12px; }
-  .spot-metric-k { font-size: 12px; color: var(--text-3); margin-bottom: 3px; }
-  .spot-metric-v { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
-  .dir-up { color: #f04452; }
-  .dir-down { color: #1763d6; }
-  .dir-flat { color: #c1832f; }
-  .ind-growth { color: #15905c; }
-  .ind-mute { color: #8b95a1; }
-  .ind-decline { color: #c0392b; }
-  .ind-turn { color: #c1832f; }
-
-  .spot-body { font-size: 16px; color: var(--text-2); line-height: 1.65; margin: 0 0 12px; }
-  .spot-caution {
-    display: flex; align-items: flex-start; gap: 7px;
-    background: #fff7ed; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px;
-  }
-  .spot-caution-ic { font-size: 15px; line-height: 1.4; flex-shrink: 0; }
-  .spot-caution-tx { font-size: 14px; color: #9a6a1f; line-height: 1.55; }
-
-  .spot-ev {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    border-top: 1px solid var(--border); padding-top: 11px; text-decoration: none;
-  }
-  .spot-ev-note { font-size: 13px; color: var(--text-3); }
-  .spot-ev-cta { font-size: 13px; font-weight: 800; color: #ed781f; white-space: nowrap; }
 </style>

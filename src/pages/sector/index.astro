@@ -1,0 +1,82 @@
+---
+// 섹터 돋보기 메뉴 (/sector)
+// 위: 지금 주목 섹터(가장 최근 분석) · 아래: 지난 분석 섹터(최근 분석 순). 누르면 섹터 상세.
+import Base from '../../layouts/Base.astro';
+import SectorCard from '../../components/SectorCard.astro';
+import { groupSectors, loadSectorRecords, sectorHref, shortDate, trendOf } from '../../lib/sectorSpotlight';
+
+const records = await loadSectorRecords(Astro.locals.supabase);
+const { current, past, latestDay } = groupSectors(records);
+---
+
+<Base title="섹터 돋보기" description="방송에서 주목받는 섹터를 주가와 업황으로 나눠 보고, 반짝 상승인지 진짜 추세인지 정리해요.">
+  <div class="sector-wrap">
+
+    <div class="sector-header">
+      <h1 class="sector-h1">🔎 섹터 돋보기</h1>
+      <p class="sector-sub">방송에서 주목받는 섹터를 주가와 업황으로 나눠 보고, 반짝 상승인지 진짜 추세인지 정리했어요.</p>
+    </div>
+
+    {current.length === 0 ? (
+      <p class="sector-empty">아직 분석한 섹터가 없어요.</p>
+    ) : (
+      <>
+        <div class="sector-sec-label">
+          지금 주목 섹터
+          {latestDay && <span class="sector-sec-date">{shortDate(latestDay)} 분석</span>}
+        </div>
+        {current.map((s) => <SectorCard sector={s.latest} />)}
+      </>
+    )}
+
+    {past.length > 0 && (
+      <div class="sector-past">
+        <div class="sector-sec-label">지난 분석 섹터</div>
+        <div class="past-list">
+          {past.map((s) => {
+            const trend = trendOf(s.latest);
+            return (
+              <a class="past-row" href={sectorHref(s.latest.name)}>
+                <span class="past-name">{s.latest.name}</span>
+                <span class={`past-trend ${trend.cls}`}>{trend.label}</span>
+                <span class="past-meta">{shortDate(s.latest.analyzed_on)} · {s.count}회 분석</span>
+              </a>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
+  </div>
+</Base>
+
+<style>
+  .sector-wrap { max-width: 680px; margin: 0 auto; padding: 20px 16px 80px; }
+
+  .sector-header { margin-bottom: 22px; }
+  .sector-h1 { font-size: 23px; font-weight: 900; letter-spacing: -0.03em; color: var(--text-1); margin-bottom: 6px; }
+  .sector-sub { font-size: 15px; color: var(--text-3); line-height: 1.5; }
+  .sector-empty { font-size: 15px; color: var(--text-3); padding: 40px 0; text-align: center; }
+
+  .sector-sec-label {
+    display: flex; align-items: baseline; justify-content: space-between;
+    font-size: 15px; font-weight: 800; color: var(--text-2); margin: 0 2px 10px;
+  }
+  .sector-sec-date { font-size: 14px; font-weight: 600; color: var(--text-3); }
+
+  .sector-past { margin-top: 30px; }
+  .past-list { background: var(--card); box-shadow: var(--shadow-card); border-radius: 14px; padding: 4px 16px; }
+  .past-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 0; text-decoration: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .past-row:last-child { border-bottom: none; }
+  .past-row:hover .past-name { opacity: 0.62; }
+  .past-name { font-size: 17px; font-weight: 700; color: var(--text-1); letter-spacing: -0.02em; min-width: 0; }
+  .past-trend { flex-shrink: 0; font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .past-meta { margin-left: auto; flex-shrink: 0; font-size: 14px; color: var(--text-3); }
+  .trend-alive { background: #e6f6ee; color: #15905c; }
+  .trend-fading { background: #e3edff; color: #1763d6; }
+  .trend-pop { background: #fdeaea; color: #c0392b; }
+</style>

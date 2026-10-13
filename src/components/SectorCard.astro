@@ -1,0 +1,48 @@
+---
+// 섹터 돋보기 간단 카드 — 홈 상위 3개·섹터 목록 "지금 주목 섹터"에서 쓴다.
+// 섹터명 + 추세 배지 + "주가 ↑ · 업황 ↑ · 산업 성격" 한 줄. 누르면 섹터 상세로 이동.
+import { dirArrow, industryOf, sectorHref, trendOf, type SectorRecord } from '../lib/sectorSpotlight';
+
+interface Props { sector: SectorRecord }
+const { sector: s } = Astro.props;
+const trend = trendOf(s);
+---
+
+<a class="sc-card" href={sectorHref(s.name)}>
+  <div class="sc-head">
+    <span class="sc-name">{s.name}</span>
+    <span class={`sc-trend ${trend.cls}`}>{trend.label}</span>
+  </div>
+  <div class="sc-meta">
+    주가 <b class={`dir-${s.price_dir}`}>{dirArrow(s.price_dir)}</b>
+    <span class="sc-dot">·</span>
+    업황 <b class={`dir-${s.biz_dir}`}>{dirArrow(s.biz_dir)}</b>
+    <span class="sc-dot">·</span>
+    {industryOf(s).label}
+  </div>
+</a>
+
+<style>
+  .sc-card {
+    display: block; text-decoration: none;
+    background: var(--card); box-shadow: var(--shadow-card);
+    border-radius: 14px; padding: 14px 16px; margin-bottom: 10px;
+    transition: box-shadow 160ms ease, transform 160ms ease;
+  }
+  .sc-card:hover { box-shadow: var(--shadow-card-hover); transform: translateY(-1px); }
+  .sc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .sc-name { font-size: 17px; font-weight: 800; color: var(--text-1); letter-spacing: -0.02em; min-width: 0; }
+  .sc-trend {
+    flex-shrink: 0; font-size: 12px; font-weight: 800;
+    padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .trend-alive { background: #e6f6ee; color: #15905c; }
+  .trend-fading { background: #e3edff; color: #1763d6; }
+  .trend-pop { background: #fdeaea; color: #c0392b; }
+  .sc-meta { font-size: 14px; color: var(--text-3); margin-top: 6px; }
+  .sc-meta b { font-weight: 800; }
+  .sc-dot { margin: 0 3px; }
+  .dir-up { color: #f04452; }
+  .dir-down { color: #1763d6; }
+  .dir-flat { color: #c1832f; }
+</style>

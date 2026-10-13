@@ -1,0 +1,91 @@
+---
+// 섹터 돋보기 자세한 카드 — 섹터 상세(/sector/[name]) 맨 위 "가장 최근 분석".
+// 주목도·추세 배지 + 주가/업황/산업성격 3분할 + 풀이 + ⚠️ 체크포인트 + 방송 근거.
+import { dirArrow, heatOf, industryOf, trendOf, type SectorRecord } from '../lib/sectorSpotlight';
+
+interface Props { sector: SectorRecord }
+const { sector: s } = Astro.props;
+const heat = heatOf(s);
+const trend = trendOf(s);
+const industry = industryOf(s);
+---
+
+<div class="spot-card">
+  <div class="spot-head">
+    <span class={`spot-heat ${heat.cls}`}>{heat.label}</span>
+    <span class={`spot-trend ${trend.cls}`}>{trend.label}</span>
+  </div>
+
+  <div class="spot-metrics">
+    <div class="spot-metric">
+      <div class="spot-metric-k">주가</div>
+      <div class={`spot-metric-v dir-${s.price_dir}`}>{s.price_label || '-'} {dirArrow(s.price_dir)}</div>
+    </div>
+    <div class="spot-metric">
+      <div class="spot-metric-k">업황</div>
+      <div class={`spot-metric-v dir-${s.biz_dir}`}>{s.biz_label || '-'} {dirArrow(s.biz_dir)}</div>
+    </div>
+    <div class="spot-metric">
+      <div class="spot-metric-k">산업 성격</div>
+      <div class={`spot-metric-v ${industry.cls}`}>{industry.label}</div>
+    </div>
+  </div>
+
+  {s.body && <p class="spot-body">{s.body}</p>}
+
+  {s.caution && (
+    <div class="spot-caution">
+      <span class="spot-caution-ic">⚠️</span>
+      <span class="spot-caution-tx">{s.caution}</span>
+    </div>
+  )}
+
+  <a class="spot-ev" href={s.evidence_href || '/feed'}>
+    <span class="spot-ev-note">{s.evidence_note || '방송 근거 살펴보기'}</span>
+    <span class="spot-ev-cta">방송 근거 보기 →</span>
+  </a>
+</div>
+
+<style>
+  .spot-card {
+    background: var(--card); box-shadow: var(--shadow-card);
+    border-radius: 14px; padding: 16px;
+  }
+  .spot-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .spot-heat, .spot-trend {
+    display: inline-flex; align-items: center;
+    font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .heat-hot { background: #fff0e6; color: #d1631a; }
+  .heat-mute { background: #eef1f4; color: #4e5968; }
+  .trend-alive { background: #e6f6ee; color: #15905c; }
+  .trend-fading { background: #e3edff; color: #1763d6; }
+  .trend-pop { background: #fdeaea; color: #c0392b; }
+
+  .spot-metrics { display: flex; gap: 8px; margin-bottom: 12px; }
+  .spot-metric { flex: 1; min-width: 0; background: #f9fafb; border-radius: 10px; padding: 10px 12px; }
+  .spot-metric-k { font-size: 12px; color: var(--text-3); margin-bottom: 3px; }
+  .spot-metric-v { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+  .dir-up { color: #f04452; }
+  .dir-down { color: #1763d6; }
+  .dir-flat { color: #c1832f; }
+  .ind-growth { color: #15905c; }
+  .ind-mute { color: #8b95a1; }
+  .ind-decline { color: #c0392b; }
+  .ind-turn { color: #c1832f; }
+
+  .spot-body { font-size: 17px; color: var(--text-2); line-height: 1.65; margin: 0 0 12px; }
+  .spot-caution {
+    display: flex; align-items: flex-start; gap: 7px;
+    background: #fff7ed; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px;
+  }
+  .spot-caution-ic { font-size: 15px; line-height: 1.4; flex-shrink: 0; }
+  .spot-caution-tx { font-size: 15px; color: #9a6a1f; line-height: 1.55; }
+
+  .spot-ev {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    border-top: 1px solid var(--border); padding-top: 11px; text-decoration: none;
+  }
+  .spot-ev-note { font-size: 14px; color: var(--text-3); }
+  .spot-ev-cta { font-size: 14px; font-weight: 800; color: #ed781f; white-space: nowrap; }
+</style>

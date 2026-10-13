@@ -1,0 +1,96 @@
+---
+// 섹터 상세 (/sector/[name])
+// 맨 위: 가장 최근 분석(자세한 카드) · 아래: 분석 기록 타임라인(추세가 어떻게 바뀌어 왔는지)
+import Base from '../../layouts/Base.astro';
+import SectorDetailCard from '../../components/SectorDetailCard.astro';
+import { dirArrow, heatOf, loadSectorRecords, shortDate, trendOf } from '../../lib/sectorSpotlight';
+
+const rawName = (Astro.params as { name: string }).name;
+let name = rawName;
+try { name = decodeURIComponent(rawName); } catch { name = rawName; }
+
+const records = (await loadSectorRecords(Astro.locals.supabase)).filter((r) => r.name === name);
+if (records.length === 0) return Astro.redirect('/sector');
+const latest = records[0];
+---
+
+<Base title={`${name} 섹터 돋보기`} description={latest.body ?? `${name} 섹터 분석 기록`}>
+  <div class="sector-wrap">
+
+    <a class="sector-back" href="/sector">‹ 섹터 돋보기</a>
+    <h1 class="sector-h1">{name}</h1>
+    <p class="sector-sub">{shortDate(latest.analyzed_on)} 분석 · 지금까지 {records.length}회 분석</p>
+
+    <div class="sector-sec-label">가장 최근 분석</div>
+    <SectorDetailCard sector={latest} />
+
+    <div class="sector-sec-label sector-hist-label">분석 기록</div>
+    <ol class="hist">
+      {records.map((r) => {
+        const trend = trendOf(r);
+        return (
+          <li class="hist-item">
+            <div class="hist-top">
+              <span class="hist-date">{shortDate(r.analyzed_on)}</span>
+              <span class={`hist-trend ${trend.cls}`}>{trend.label}</span>
+              <span class="hist-heat">{heatOf(r).label}</span>
+            </div>
+            <div class="hist-meta">
+              주가 {r.price_label || '-'} <b class={`dir-${r.price_dir}`}>{dirArrow(r.price_dir)}</b>
+              <span class="hist-dot">·</span>
+              업황 {r.biz_label || '-'} <b class={`dir-${r.biz_dir}`}>{dirArrow(r.biz_dir)}</b>
+            </div>
+            {r !== latest && r.body && (
+              <details class="hist-more">
+                <summary>그때 풀이 보기</summary>
+                <p class="hist-body">{r.body}</p>
+                {r.caution && <p class="hist-caution">⚠️ {r.caution}</p>}
+              </details>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+    {records.length === 1 && <p class="hist-note">앞으로 이 섹터를 다시 분석할 때마다 기록이 쌓여요.</p>}
+
+  </div>
+</Base>
+
+<style>
+  .sector-wrap { max-width: 680px; margin: 0 auto; padding: 16px 16px 80px; }
+  .sector-back { display: inline-block; font-size: 15px; font-weight: 600; color: var(--text-3); text-decoration: none; margin-bottom: 12px; }
+  .sector-back:hover { color: var(--text-2); }
+  .sector-h1 { font-size: 24px; font-weight: 900; letter-spacing: -0.03em; color: var(--text-1); }
+  .sector-sub { font-size: 15px; color: var(--text-3); margin-top: 4px; }
+
+  .sector-sec-label { font-size: 15px; font-weight: 800; color: var(--text-2); margin: 24px 2px 10px; }
+  .sector-hist-label { margin-top: 30px; }
+
+  .hist { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--divider); }
+  .hist-item { position: relative; padding: 0 0 18px 14px; }
+  .hist-item::before {
+    content: ''; position: absolute; left: -21px; top: 6px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--card); border: 2px solid var(--text-3);
+  }
+  .hist-item:first-child::before { border-color: #ed781f; background: #ed781f; }
+  .hist-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .hist-date { font-size: 15px; font-weight: 800; color: var(--text-1); }
+  .hist-trend { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .hist-heat { font-size: 13px; color: var(--text-3); }
+  .hist-meta { font-size: 15px; color: var(--text-2); margin-top: 5px; }
+  .hist-meta b { font-weight: 800; }
+  .hist-dot { margin: 0 4px; color: var(--text-3); }
+  .hist-more { margin-top: 6px; }
+  .hist-more summary { font-size: 14px; font-weight: 700; color: #ed781f; cursor: pointer; }
+  .hist-body { font-size: 15px; color: var(--text-2); line-height: 1.6; margin-top: 8px; }
+  .hist-caution { font-size: 14px; color: #9a6a1f; line-height: 1.55; margin-top: 6px; }
+  .hist-note { font-size: 14px; color: var(--text-3); margin: 4px 2px 0; }
+
+  .trend-alive { background: #e6f6ee; color: #15905c; }
+  .trend-fading { background: #e3edff; color: #1763d6; }
+  .trend-pop { background: #fdeaea; color: #c0392b; }
+  .dir-up { color: #f04452; }
+  .dir-down { color: #1763d6; }
+  .dir-flat { color: #c1832f; }
+</style>
